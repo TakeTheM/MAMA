@@ -1,4 +1,4 @@
-# [프로젝트 가제목]
+# [MAMA]
 
 > 이 파일은 저장소의 첫 화면입니다. 처음 온 사람(교사, 클라이언트, 다른 팀)이 1분 안에 "누가 무엇을 만들고, 기록은 어디 있는지" 알 수 있게 **요약과 링크만** 둡니다.
 > 조사 내용은 아래 문서 지도의 각 파일에 씁니다. README에 조사 내용을 옮겨 적지 않습니다.
@@ -8,32 +8,32 @@
 
 | 항목               | 내용                                                                          |
 | ------------------ | ----------------------------------------------------------------------------- |
-| 팀명               |                                                                               |
-| 배정받은 큰 도메인 |                                                                               |
-| 세부 주제 (한 줄)  | `___(누가)가 ___(무엇)을 할 수 있게 하는 서비스` — 4단계에서 확정한 뒤 씁니다 |
+| 팀명               | TakeTheM                                                                      |
+| 배정받은 큰 도메인 | 소상공인, 이커머스 운영 지원 서비스                                                      |
+| 세부 주제 (한 줄)  | 소상공인 셀러 대표가 법 규칙에 맞는 광고 콘텐츠를 기획·검수·승인할 수 있게 하는 서비스 |
 | 팀원과 역할        | [docs/team/roles.md](docs/team/roles.md)                                      |
 
 ## 세부 주제 필수 조건
 
 | 조건                            | 우리 주제에서는                                                            | 자세히                                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| LLM이 서비스 기능 안에서 쓰인다 | (예: 고객 문의를 읽고 답변 초안을 만들어 CS 담당이 고쳐 보낸다)            | [03-rules-states-llm.md](docs/domain/03-rules-states-llm.md#3-4-llm이-들어갈-자리)     |
-| 핵심 대상에 상태 전이가 있다    | (예: 결제완료 → 상품준비중 → 배송지시 → 배송중 → 배송완료, 취소·반품 분기) | [03-rules-states-llm.md](docs/domain/03-rules-states-llm.md#3-2-핵심-대상과-상태-전이) |
+| LLM이 서비스 기능 안에서 쓰인다 | 광고 문구 초안을 만들고, 승인 전 위험 표현(과장·효능 표방·협찬 미표시)을 찾아 고친 문장을 제안하면 사장님이 확인해 승인한다 | [03-rules-states-llm.md](docs/domain/03-rules-states-llm.md#3-4-llm이-들어갈-자리)     |
+| 핵심 대상에 상태 전이가 있다    | 기획중 → 초안 생성됨 → 검수 대기 → 승인됨 → 게시 예약됨 → 집행중 → 종료 → 성과 평가 완료, 수정 요청·플랫폼 반려·일시정지·취소 분기 | [03-rules-states-llm.md](docs/domain/03-rules-states-llm.md#3-2-핵심-대상과-상태-전이) |
 
 ## 문서 지도
 
 | 단계 | 파일                                                                                       | 하는 일                                                                                        | 상태   |
 | ---- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ------ |
-| 0    | [docs/team/roles.md](docs/team/roles.md)                                                   | 팀 구성, 역할, 교대 계획                                                                       | ☐      |
+| 0    | [docs/team/roles.md](docs/team/roles.md)                                                   | 팀 구성, 역할, 교대 계획                                                                       | ☑      |
 | 0    | [docs/domain/README.md](docs/domain/README.md)                                             | 조사 관점, 태그 규칙, 파일 규칙, 찾아볼 곳                                                     | 읽기만 |
-| 1    | [docs/domain/01-first-look-glossary.md](docs/domain/01-first-look-glossary.md)             | 첫인상, 용어 사전, 검색어                                                                      | ☐      |
-| 2    | [docs/domain/02-people-flow-benchmark.md](docs/domain/02-people-flow-benchmark.md)         | 사람, 현재 흐름, 데이터, 기존 서비스, 논문                                                     | ☐      |
-| 3    | [docs/domain/03-rules-states-llm.md](docs/domain/03-rules-states-llm.md)                   | 규칙, 상태 전이, LLM 자리, 법령·통계                                                           | ☐      |
-| -    | [docs/domain/cards/](docs/domain/cards/)                                                   | 논문·자료 근거 카드 (카드마다 파일 하나)                                                       | ☐      |
-| -    | [docs/domain/ai-check-log.md](docs/domain/ai-check-log.md)                                 | AI에게 물어본 것과 확인 결과                                                                   | ☐      |
-| 4    | [docs/decisions/topic-selection.md](docs/decisions/topic-selection.md)                     | 필수 조건 확인, 후보 평가, 주제 확정                                                           | ☐      |
+| 1    | [docs/domain/01-first-look-glossary.md](docs/domain/01-first-look-glossary.md)             | 첫인상, 용어 사전, 검색어                                                                      | ☑      |
+| 2    | [docs/domain/02-people-flow-benchmark.md](docs/domain/02-people-flow-benchmark.md)         | 사람, 현재 흐름, 데이터, 기존 서비스, 논문                                                     | ☑      |
+| 3    | [docs/domain/03-rules-states-llm.md](docs/domain/03-rules-states-llm.md)                   | 규칙, 상태 전이, LLM 자리, 법령·통계                                                           | ☑      |
+| -    | [docs/domain/cards/](docs/domain/cards/)                                                   | 논문·자료 근거 카드 (카드마다 파일 하나)                                                       | ☑      |
+| -    | [docs/domain/ai-check-log.md](docs/domain/ai-check-log.md)                                 | AI에게 물어본 것과 확인 결과                                                                   | ☑      |
+| 4    | [docs/decisions/topic-selection.md](docs/decisions/topic-selection.md)                     | 필수 조건 확인, 후보 평가, 주제 확정                                                           | ☑      |
 | 5    | [docs/interview/mvp-assumptions-questions.md](docs/interview/mvp-assumptions-questions.md) | MVP 가설, 기능 목록, 가정·위험, 질문지, 미팅 준비                                              | ☐      |
-| 6    | [docs/interview/client-meeting-1.md](docs/interview/client-meeting-1.md)                   | MVP 가설, 기능 목록, 가정·위험, 질문지, 미팅 준비                                              | ☐      |
+| 6    | [docs/interview/client-meeting-1.md](docs/interview/client-meeting-1.md)                   | MVP 가설, 기능 목록, 가정·위험, 질문지, 미팅 준비                                              | ☑      |
 | 7    | [docs/proposal/README.md](docs/proposal/README.md)                                         | **클라이언트에게 보내는 프로젝트 제안서** (Claude 초안 → 팀 확인 → Word 양식, 완성본 docx·PDF) | ☐      |
 | -    | `logs/pre-[GitHub 아이디].md`                                                              | 개인 회고 (사람마다 파일 하나)                                                                 | ☐      |
 
