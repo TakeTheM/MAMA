@@ -4,8 +4,6 @@ about: 재현되는 문제
 labels: bug
 ---
 
-<!-- 저장 위치: .github/ISSUE_TEMPLATE/bug.md (복사한 뒤 이 주석은 지워도 됩니다) -->
-
 ## 무슨 일이 일어나는가
 
 ## 어떻게 되어야 하는가
