@@ -4,8 +4,6 @@ about: 기능 작업 이슈
 labels: story
 ---
 
-<!-- 저장 위치: .github/ISSUE_TEMPLATE/user-story.md (복사한 뒤 이 주석은 지워도 됩니다) -->
-
 ## 스토리
 [사용자]로서, [무엇]을 하고 싶다. [왜냐하면 이유].
 
