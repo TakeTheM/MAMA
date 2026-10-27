@@ -40,3 +40,30 @@
 - 첫 커밋 이후에는 main에 바로 커밋하지 않습니다. 모든 변경은 브랜치를 만들고 PR로 올린 뒤, 팀원 1명 이상이 승인하면 병합합니다.
 - 표가 있는 단계 파일(01~03, topic-selection 등)은 **블록마다 정리 담당 1명**이 고칩니다. 다른 사람은 근거 카드를 쓰거나 PR에 댓글을 남깁니다. 여러 명이 같은 파일을 동시에 고치면 충돌이 납니다.
 - 근거 카드와 개인 회고는 사람마다 파일이 달라 동시에 써도 충돌하지 않습니다.
+
+## 설치와 실행 (Mac)
+
+> 자세한 계획과 확인 기록: [docs/SETUP_PLAN.md](docs/SETUP_PLAN.md)
+
+사전 설치: Xcode Command Line Tools, Homebrew, uv(`brew install uv`), nvm. 터미널에서 `uname -m`이 Apple Silicon은 `arm64`여야 합니다.
+
+```bash
+nvm install && nvm use                                  # .nvmrc (Node 24)
+(cd backend && uv python install && uv sync --locked)   # Python 3.13, backend/.venv
+(cd frontend && npm ci)
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
+
+./scripts/dev.sh                     # 백엔드 8000 + 프론트 3000
+BACKEND_PORT=8001 ./scripts/dev.sh   # 8000을 다른 프로그램이 쓰고 있을 때
+```
+
+| 확인 | 성공이면 |
+| --- | --- |
+| http://localhost:8000/api/health | `{"status":"ok"}` |
+| http://localhost:8000/docs | FastAPI 문서 화면 |
+| http://localhost:3000 | `MAMA`와 `백엔드: ok` |
+| `cd backend && uv run pytest` | `1 passed` |
+| `cd frontend && npm test` | `1 passed` |
+
+포트 5000은 쓰지 않습니다 (Mac AirPlay).
