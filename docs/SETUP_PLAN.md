@@ -113,20 +113,20 @@
 
 | 단계 | 명령 (후보) | 실행 위치 | 근거 공식 문서 (주소·절) | 직접 실행한 사람 |
 | --- | --- | --- | --- | --- |
-| 아키텍처 확인 | `uname -m` | 아무 곳 | - | 미실행 |
+| 아키텍처 확인 | `uname -m` | 아무 곳 | - | Claude (박하린 Mac) |
 | 도구 설치 | Homebrew 공식 설치 스크립트 → `brew install uv` → nvm 설치 | 아무 곳 | https://docs.brew.sh/Installation · uv "Installation" 절 · nvm README | 미실행 |
 | Node 설치 | `nvm install` → `nvm use` (`.nvmrc` 읽음) | 루트 | nvm README ".nvmrc" 절 | 미실행 |
-| 프로젝트 초기화 — 프론트 (공유 담당 1회) | `npx create-next-app@<버전> frontend` (TypeScript, App Router, Tailwind, ESLint 선택) | 루트 | Next.js "Automatic installation" 절 | 미실행 |
-| 프로젝트 초기화 — 백엔드 (공유 담당 1회) | `uv init` → `uv python pin 3.13` → `uv add fastapi…` → `uv add --dev pytest…` | `backend/` | uv "Working on projects" 절 · FastAPI "Installation" 절 | 미실행 |
-| 프로젝트 초기화 — Vitest (공유 담당 1회) | `npm install -D vitest …` (패키지 목록은 문서 확인) | `frontend/` | Next.js "Testing › Vitest" 절 | 미실행 |
-| 가상환경·설치 (백엔드) | `uv python install` → `uv sync --locked` (`backend/.venv` 생성) | `backend/` | uv "Project environment" 절 | 미실행 |
+| 프로젝트 초기화 — 프론트 (공유 담당 1회) | `npx create-next-app@<버전> frontend` (TypeScript, App Router, Tailwind, ESLint 선택) | 루트 | Next.js "Automatic installation" 절 | Claude (박하린 Mac) |
+| 프로젝트 초기화 — 백엔드 (공유 담당 1회) | `uv init` → `uv python pin 3.13` → `uv add fastapi…` → `uv add --dev pytest…` | `backend/` | uv "Working on projects" 절 · FastAPI "Installation" 절 | Claude (박하린 Mac) |
+| 프로젝트 초기화 — Vitest (공유 담당 1회) | `npm install -D vitest …` (패키지 목록은 문서 확인) | `frontend/` | Next.js "Testing › Vitest" 절 | Claude (박하린 Mac) |
+| 가상환경·설치 (백엔드) | `uv python install` → `uv sync --locked` (`backend/.venv` 생성) | `backend/` | uv "Project environment" 절 | Claude (박하린 Mac) |
 | 가상환경 확인 | `source .venv/bin/activate` → `python3 --version` (3.13.x) → `which python3` (`.venv` 안) | `backend/` | Python 문서 "venv" 절 | 미실행 |
-| 설치 (프론트) | `npm ci` | `frontend/` | npm 문서 "npm ci" | 미실행 |
-| 환경변수 파일 | `cp backend/.env.example backend/.env` / `cp frontend/.env.example frontend/.env.local` | 루트 | Next.js 환경변수 절 | 미실행 |
-| 실행 (함께) | `./scripts/dev.sh` | 루트 | - | 미실행 |
+| 설치 (프론트) | `npm ci` | `frontend/` | npm 문서 "npm ci" | Claude (박하린 Mac, create-next-app이 설치) |
+| 환경변수 파일 | `cp backend/.env.example backend/.env` / `cp frontend/.env.example frontend/.env.local` | 루트 | Next.js 환경변수 절 | Claude (박하린 Mac) |
+| 실행 (함께) | `./scripts/dev.sh` | 루트 | - | Claude (박하린 Mac, BACKEND_PORT=8001) |
 | 실행 (따로) | 백엔드 `uv run fastapi dev app/main.py --port 8000` / 프론트 `npm run dev` | `backend/` / `frontend/` | FastAPI "First Steps" 절 · Next.js 설치 문서 | 미실행 |
-| 테스트 | 백엔드 `uv run pytest` / 프론트 `npm test` | `backend/` / `frontend/` | FastAPI "Testing" 절 · Next.js "Vitest" 절 | 미실행 |
-| 린트·포맷 | 프론트 `npm run lint` / 백엔드 미정 | `frontend/` / `backend/` | 미확인 | 미실행 |
+| 테스트 | 백엔드 `uv run pytest` / 프론트 `npm test` | `backend/` / `frontend/` | FastAPI "Testing" 절 · Next.js "Vitest" 절 | Claude (박하린 Mac) |
+| 린트·포맷 | 프론트 `npm run lint` / 백엔드 미정 | `frontend/` / `backend/` | 미확인 | Claude (박하린 Mac, 프론트만) |
 
 > uv 대신 표준 venv로 정하면 백엔드 설치 행은 `python3 -m venv .venv` → `source .venv/bin/activate` → `python3 -m pip install …`로 바꿉니다(1절 결정 사항).
 
@@ -183,6 +183,20 @@
 
 ## 7. 계획과 실제의 차이
 
+> 2026-10-27, 팀 결정(B안)에 따라 공유·서버·화면·테스트 영역의 설치·초기화를 **Claude가 박하린의 Mac(arm64, macOS 27.0.1)에서 실행**했습니다. 아래 설치 버전은 실제로 설치된 값이며, 1절의 공식 문서 확인은 아직 팀이 하지 않았습니다.
+> 실제 설치 버전: Node 25.8.1(임시, 아래 참고) · npm 11.11.0 · Next.js 16.4.3 · React 19.3.0 · TypeScript 5.9.3 · Tailwind CSS 4.3.3 · ESLint 9.39.5 · Vitest 4.1.12 · Python 3.13.17 · uv 0.11.2 · FastAPI 0.162.0 · Uvicorn 0.54.0 · Pytest 9.1.1
+> 확인 결과: `uv run pytest` 1 passed, `npm test` 1 passed, `npm run lint` 오류 없음, `tsc --noEmit` 통과. `/api/health`(백엔드 직접 호출과 3000 경유 rewrites) 모두 `{"status":"ok"}`, `/docs` 200, 백엔드를 끄면 3000의 `/api/health`가 500(화면은 `연결 안 됨` 표시). 브라우저 화면은 눈으로 확인하지 않았습니다.
+
 | 계획 | 실제 | 이유 |
 | --- | --- | --- |
-| | | |
+| 설치·초기화는 학생이 직접 | Claude가 실행 | 팀 결정 (B안) |
+| 코드 저장소는 별도 (이름 미정) | `MAMA-docs` 저장소 안에 `frontend/`, `backend/`, `scripts/` | 팀 결정 |
+| nvm으로 Node 24 설치 | **nvm 미설치.** `.nvmrc`는 `24`로 만들었지만 설치·실행은 이 Mac의 Node 25.8.1로 함 | nvm 공식 설치 스크립트(`curl … \| bash`) 실행이 권한에서 막힘. 박하린이 nvm을 설치한 뒤 `nvm install && nvm use` → `cd frontend && rm -rf node_modules && npm ci`로 다시 설치해야 함 |
+| Node 24가 LTS인지 확인 | nodejs.org 배포 목록에서 v24.22.1이 LTS(Krypton). Next.js 16.4.3의 `engines.node`는 `>=20.9.0` | 공식 릴리스 문서 절은 팀이 다시 확인 |
+| 백엔드 포트 8000 | 이 Mac에서는 다른 프로젝트(`PTKOREA/CRM-prototype` 백엔드)가 8000을 쓰고 있어 8001로 확인 | 다른 프로젝트 서버는 끄지 않음. `dev.sh`에 포트 사용 검사와 `BACKEND_PORT` 변수를 추가 |
+| `dev.sh`는 두 서버를 함께 실행 | 포트가 이미 쓰이면 바로 멈추고 알림, `BACKEND_PORT`·`FRONTEND_PORT`로 변경 가능, 프론트에 `BACKEND_URL` 전달 | 위 포트 충돌 때문 |
+| `uv init` 결과 그대로 사용 | uv가 만든 예제 `main.py`와 빈 `README.md` 삭제, `pyproject.toml`의 `readme` 줄 삭제, pytest 설정(`testpaths`, `pythonpath`) 추가 | 계획 구조(`app/main.py`)와 맞추기 위해 |
+| create-next-app 결과 그대로 사용 | `frontend/README.md` 삭제. 생성된 `next.config.ts`의 `cacheComponents`·`partialPrefetching`·Tailwind turbopack 로더 설정은 그대로 두고 rewrites만 추가 | 설치·실행 방법은 루트 README 한 곳에 둠 |
+| `.gitignore`는 공유 영역에서 | create-next-app이 `frontend/.gitignore`를 만들었고 `.env*`를 모두 제외해 `.env.example`도 빠짐 → `!.env.example` 추가. 루트 `.gitignore`에 Python 항목 추가 | `.env.example`을 커밋하기 위해 |
+| Vitest 패키지 목록은 문서 확인 | `vitest`, `@vitejs/plugin-react`, `jsdom`, `@testing-library/react`, `@testing-library/dom`, `vite-tsconfig-paths` 설치. `npm test`는 `vitest run`(한 번 실행 후 종료) | 성공 기준 "1 passed 후 종료"에 맞추기 위해 watch 모드를 쓰지 않음 |
+| (계획에 없음) | Next.js 경고: `/Users/harin/Documents/package-lock.json`을 무시함 | 저장소 밖의 오래된 파일. 동작에는 영향 없음. 지우지 않음 |
