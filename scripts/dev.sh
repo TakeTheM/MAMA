@@ -14,7 +14,7 @@ for port in "$BACKEND_PORT" "$FRONTEND_PORT"; do
   fi
 done
 
-(cd "$ROOT/backend" && uv run fastapi dev app/main.py --port "$BACKEND_PORT") &
+(cd "$ROOT/backend" && uv run fastapi dev main.py --port "$BACKEND_PORT") &
 BACKEND_PID=$!
 
 trap 'kill "$BACKEND_PID" 2>/dev/null || true' EXIT INT TERM

@@ -56,39 +56,47 @@
 > 프론트와 백엔드는 한 저장소의 두 폴더로 둡니다(`STACK.md` C안: Vercel Root Directory `frontend`, Render `backend`). 아래는 계획이며, 생성 명령이 실제로 만드는 파일과 다르면 실제를 따르고 7절에 적습니다.
 
 ```text
-(코드 저장소, 이름 미정)/
-├── .gitignore                         ┐
-├── .nvmrc                             │
-├── README.md                          │
-├── scripts/dev.sh                     │
-├── frontend/package.json              │
-├── frontend/package-lock.json         │
-├── frontend/tsconfig.json             │ 공유 영역
-├── frontend/eslint.config.mjs         │ (생성 도구가 만들면)
-├── frontend/next.config.ts            │ (/api/* → BACKEND_URL rewrites)
-├── frontend/.env.example              │
-├── backend/pyproject.toml             │ (pytest 설정 포함)
-├── backend/uv.lock                    │
-├── backend/.python-version            │ (3.13)
-├── backend/.env.example               ┘
-├── backend/app/__init__.py            ┐ 서버 영역
-├── backend/app/main.py                ┘ (FastAPI 앱, GET /api/health)
-├── frontend/app/layout.tsx            ┐
-├── frontend/app/page.tsx              │ 화면 영역
-├── frontend/app/globals.css           ┘
-├── frontend/vitest.config.mts         ┐
-├── frontend/__tests__/page.test.tsx   │ 테스트 영역
-└── backend/tests/test_health.py       ┘
+mama-project/                          # 저장소 루트 (GitHub 저장소 이름은 MAMA-docs)
+├── backend/
+│   ├── main.py                        # 서버 영역 — FastAPI 앱, GET /api/health
+│   ├── pyproject.toml                 # 공유 — 의존성, pytest 설정(testpaths = ../tests)
+│   ├── uv.lock                        # 공유
+│   ├── .python-version                # 공유 — 3.13
+│   └── .env.example                   # 공유
+│
+├── frontend/                          # Next.js 16 (STACK.md 유지)
+│   ├── app/layout.tsx                 # 화면 영역
+│   ├── app/page.tsx                   # 화면 영역 — 서비스 이름 + 백엔드 상태
+│   ├── app/globals.css                # 화면 영역
+│   ├── __tests__/page.test.tsx        # 테스트 영역 — Vitest 스모크 테스트
+│   ├── vitest.config.mts              # 테스트 영역
+│   ├── package.json · package-lock.json · tsconfig.json · eslint.config.mjs  # 공유
+│   ├── next.config.ts                 # 공유 — /api/* → BACKEND_URL rewrites
+│   ├── .gitignore                     # 공유 (create-next-app 생성, !.env.example 추가)
+│   └── .env.example                   # 공유
+│
+├── tests/
+│   └── test_health.py                 # 테스트 영역 — Pytest 스모크 테스트
+│
+├── docs/                              # 문서 (이 파일 포함)
+├── logs/                              # 데일리 로그
+│
+├── scripts/dev.sh                     # 공유
+├── .gitignore · .nvmrc                # 공유
+├── README.md                          # 공유 — 문서 지도 + 설치·실행 방법
+└── requirements.txt                   # 공유 — uv.lock에서 내보낸 파일 (직접 고치지 않음)
 ```
+
+> `requirements.txt`는 `uv.lock`에서 만든 파일입니다. 의존성을 바꾸면 공유 담당이 루트에서 `uv export --project backend --format requirements-txt --no-hashes --no-emit-project -o requirements.txt`로 다시 만듭니다.
 
 > 상태 확인 주소는 `/api/health`로 둡니다. rewrites가 `/api/*`를 그대로 넘기므로 3000과 8000에서 같은 경로로 부를 수 있고, `STACK.md`의 "`/api/health`로 백엔드 깨우기"와도 맞습니다.
 
 | 역할                               | 맡는 영역 (폴더·파일)                                                 | 만드는 것                                                                                                                                                    | 만들지 않는 것                                 |
 | ---------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
 | 공유 기반 — 박하린 (테크 리드)     | 위 '공유 영역' 파일 전부                                              | 두 폴더 초기화(create-next-app, uv 프로젝트 생성), 의존성·lock 파일, 테스트 도구 의존성 추가, rewrites 설정, `.env.example`, `dev.sh`, README의 설치·실행 절 | 화면·서버 코드                                 |
-| 서버 — 이규민 (개발자 2)           | `backend/app/`                                                        | FastAPI 앱 시작 지점, `GET /api/health` → `{"status": "ok"}`                                                                                                 | 의존성 파일, DB 연결, 로그인                   |
+| 서버 — 이규민 (개발자 2)           | `backend/main.py`                                                     | FastAPI 앱 시작 지점, `GET /api/health` → `{"status": "ok"}`                                                                                                 | 의존성 파일, DB 연결, 로그인                   |
 | 화면 — 윤미수 (개발자 1)           | `frontend/app/`                                                       | 기본 화면 1개 (서비스 이름 + 백엔드 상태 `ok` / `연결 안 됨` 표시)                                                                                           | 의존성 파일, `next.config.ts`                  |
-| 테스트·실행 — 김태훈 (테스트 담당) | `frontend/vitest.config.mts`, `frontend/__tests__/`, `backend/tests/` | 스모크 테스트 2개 (프론트 1, 백엔드 1). 새 폴더에서 처음부터 실행 확인                                                                                       | 의존성 파일 (필요한 패키지는 공유 영역에 요청) |
+| 테스트·실행 — 김태훈 (테스트 담당) | `frontend/vitest.config.mts`, `frontend/__tests__/`, `tests/`         | 스모크 테스트 2개 (프론트 1, 백엔드 1). 새 폴더에서 처음부터 실행 확인                                                                                       | 의존성 파일 (필요한 패키지는 공유 영역에 요청) |
 | 정리 담당 — 임소리 (리더)          | `docs/` (이 문서 5·6·7절)                                             | 수정 요청과 실행 확인 결과 기록                                                                                                                              | -                                              |
 
 > 담당자 이름은 `team/roles.md`의 S1 역할을 따른 제안입니다(1절 '착수 전 팀이 결정할 것'에서 확정).
@@ -125,7 +133,7 @@
 | 설치 (프론트)                            | `npm ci`                                                                                  | `frontend/`              | npm 문서 "npm ci"                                                     | Claude (박하린 Mac, create-next-app이 설치)    |
 | 환경변수 파일                            | `cp backend/.env.example backend/.env` / `cp frontend/.env.example frontend/.env.local`   | 루트                     | Next.js 환경변수 절                                                   | Claude (박하린 Mac)                            |
 | 실행 (함께)                              | `./scripts/dev.sh`                                                                        | 루트                     | -                                                                     | Claude (박하린 Mac, BACKEND_PORT=8001)         |
-| 실행 (따로)                              | 백엔드 `uv run fastapi dev app/main.py --port 8000` / 프론트 `npm run dev`                | `backend/` / `frontend/` | FastAPI "First Steps" 절 · Next.js 설치 문서                          | Claude (박하린 Mac, 백엔드 8001)               |
+| 실행 (따로)                              | 백엔드 `uv run fastapi dev main.py --port 8000` / 프론트 `npm run dev`                | `backend/` / `frontend/` | FastAPI "First Steps" 절 · Next.js 설치 문서                          | Claude (박하린 Mac, 백엔드 8001)               |
 | 테스트                                   | 백엔드 `uv run pytest` / 프론트 `npm test`                                                | `backend/` / `frontend/` | FastAPI "Testing" 절 · Next.js "Vitest" 절                            | Claude (박하린 Mac)                            |
 | 린트·포맷                                | 프론트 `npm run lint` / 백엔드 미정                                                       | `frontend/` / `backend/` | 미확인                                                                | Claude (박하린 Mac, 프론트만)                  |
 
@@ -202,3 +210,4 @@
 | `.gitignore`는 공유 영역에서     | create-next-app이 `frontend/.gitignore`를 만들었고 `.env*`를 모두 제외해 `.env.example`도 빠짐 → `!.env.example` 추가. 루트 `.gitignore`에 Python 항목 추가            | `.env.example`을 커밋하기 위해                                                                                                                                                       |
 | Vitest 패키지 목록은 문서 확인   | `vitest`, `@vitejs/plugin-react`, `jsdom`, `@testing-library/react`, `@testing-library/dom`, `vite-tsconfig-paths` 설치. `npm test`는 `vitest run`(한 번 실행 후 종료) | 성공 기준 "1 passed 후 종료"에 맞추기 위해 watch 모드를 쓰지 않음                                                                                                                    |
 | (계획에 없음)                    | Next.js 경고: `/Users/harin/Documents/package-lock.json`을 무시함                                                                                                      | 저장소 밖의 오래된 파일. 동작에는 영향 없음. 지우지 않음                                                                                                                             |
+| 백엔드는 `backend/app/main.py`, 테스트는 `backend/tests/`, uv만 사용 | 저장소 루트(= mama-project)에 `backend/main.py`, `tests/`, `requirements.txt`. `docs/`·`logs/`·`README.md`는 원래 루트. `scripts/`·`.nvmrc`·`frontend/`의 Next.js 파일은 STACK.md 유지를 위해 남김 (uv.lock에서 내보냄). Next.js·uv·Vitest는 그대로 | 팀이 정한 폴더 구조에 맞춤 (2026-10-27). 스택은 STACK.md 유지 |
