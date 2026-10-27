@@ -174,9 +174,24 @@ mama-project/                          # 저장소 루트 (GitHub 저장소 이�
 
 ## 5. 계획 수정 요청 (정리 담당이 적음)
 
+> 2026-10-27 계획 검토(설치 전 계획 기준)에서 나온 요청입니다. 판정은 실제 설치·실행 결과로 했습니다.
+
 | 수정 요청한 내용 | 반영 / 보류 / 반영하지 않음 | 이유 |
-| ---------------- | --------------------------- | ---- |
-|                  |                             |      |
+| --- | --- | --- |
+| ① `uv init`은 `src/<이름>/` 구조를 만들고 3.13 고정과 충돌할 수 있으니 `--python 3.13`을 처음부터 지정 | 반영 (구조 설명은 틀림) | `uv init --app --python 3.13`으로 실행. 실제 결과는 `main.py`·`pyproject.toml`·`.python-version`이고 `src/`·빌드 시스템은 생기지 않음(`src/`는 `--package`·`--lib`일 때). `requires-python = ">=3.13"` 확인 |
+| ② pytest는 현재 폴더를 import 경로에 넣지 않으므로 `pythonpath = ["."]` 설정 | 반영 | `backend/pyproject.toml`에 `pythonpath = ["."]`, `testpaths = ["../tests"]`. 루트 `tests/`에서 `from main import app`으로 1 passed |
+| ③ `vitest`는 감시 모드라 끝나지 않으므로 `"test": "vitest run"`, 스크립트 추가 단계 명시 | 반영 | `npm test` → 1 passed 후 종료. create-next-app이 `test` 스크립트를 만들지 않아 공유 담당이 추가 |
+| ④ rewrites는 들어오는 요청에만 적용되므로 상태 표시는 클라이언트 컴포넌트에서 `fetch('/api/health')`, `res.ok`가 아니면 `연결 안 됨` | 반영 | `app/page.tsx`를 클라이언트 컴포넌트로 작성. 백엔드를 끄면 3000의 `/api/health`가 실제로 500을 돌려줌을 확인. 프론트 테스트는 fetch를 목으로 대신함 |
+| ⑤ nvm은 Homebrew 설치 미지원. 공식 스크립트로 설치, `~/.zshrc`가 없으면 먼저 `touch ~/.zshrc`, Xcode CLT 먼저 설치 | 보류 | 공식 설치 스크립트 실행이 Claude 권한에서 막힘. 박하린이 직접 설치한 뒤 Node 24로 재설치해야 함(7절) |
+| `.nvmrc`는 24 (Vercel 지원 24.x·22.x, 20은 EOL, 26은 Current) | 반영 | `.nvmrc` = `24`. nodejs.org 배포 목록에서 v24.22.1 LTS 확인 |
+| create-next-app 추가 질문(linter, React Compiler, src 폴더, Cache Components, AGENTS.md) 선택을 정해 둘 것 | 반영 | 기본값(`--yes`)에 TS·ESLint·Tailwind·App Router·`src` 없음을 지정. 결과로 `cacheComponents: true`와 `frontend/AGENTS.md`가 생김 |
+| FastAPI는 `uv add "fastapi[standard]"`, `--port` 옵션은 `--help`로 확인 | 반영 | `fastapi[standard]`에 httpx가 들어 있어 TestClient 동작. `fastapi dev main.py --port 8001` 실제 동작 확인 |
+| `pyproject.toml`에 `[tool.fastapi] entrypoint` 두기 | 보류 | 설치된 fastapi-cli에 설정은 있음. 지금은 `fastapi dev main.py`로 충분하여 팀이 필요할 때 결정 |
+| Render는 `.python-version` 대신 환경변수 `PYTHON_VERSION=3.13.x`(전체 버전)로 고정, 빌드 명령 `uv sync` 직접 지정 | 보류 | 배포 단계에서 반영. **추가 확인 필요:** 루트로 옮긴 `requirements.txt`·`tests/`는 Render Root Directory(`backend`) 밖이라 Render가 어떤 의존성 파일을 쓸지 정해야 함 |
+| Supabase Free는 활성 프로젝트 2개까지라 개발용·배포용을 나누면 한도가 참 | 보류 | DB 연결은 이번 범위 밖. `STACK.md` 확인할 것 "Supabase 개발용/배포용 DB 분리"와 함께 팀이 결정 |
+| create-next-app이 `frontend/.gitignore`·`README.md`·`AGENTS.md`를 만들어 공유 파일이 여러 개가 됨 | 반영 | `frontend/README.md`는 삭제, `AGENTS.md`는 유지. `frontend/.gitignore`의 `.env*`가 `.env.example`까지 무시해 `!.env.example` 추가(7절) |
+| rewrites는 빌드·dev 시작 때 `BACKEND_URL`을 읽으므로 기본값 `http://localhost:8000` 두기 | 반영 | `next.config.ts`에 기본값을 넣고, `dev.sh`가 시작할 때 `BACKEND_URL`을 넘김. Vercel에서 값을 바꾸면 재배포 필요 |
+| Mac 기본 `python3`(3.9.x)와 다른 버전이 먼저 잡힐 수 있으니 `which python3`로 확인 | 반영 (환경 설명은 이 Mac과 다름) | 3-2 '가상환경 확인' 행에 있음. 이 Mac의 `python3`는 3.11.9였고(검토에는 3.12로 적힘), `.venv` 안에서는 3.13.17 확인 |
 
 ## 6. 실행 확인 (5명 전원, 정리 담당이 모아 적음)
 
