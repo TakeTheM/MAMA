@@ -21,7 +21,7 @@
 | 윤미수 |                      |                                |                                                    |                                              |
 | 박하린 |                      |                                |                                                    |                                              |
 | 김태훈 | React (TypeScript)   | 트리투두스, 공유 투두리스트 앱 | 인터페이스 간의 결합도를 낮추는 것이 어려웠습니다. | 렌더링 최적화 방법에 대해 고민하고 싶습니다. |
-| 아규만 |                      |                                |                                                    |                                              |
+| 이규민 | Python (FastAPI, Flask, Django), Java (Spring Boot, JPA), JS (React, TypeScript), Docker, k8s, Cloudflare | 학교 여름 캠프용 골든벨 플랫폼, Tlitodos(일정 관리 도구), 나락락(협업 기반 작곡 플랫폼) 등 | JS를 사용하면서 다른 언어들과 다른 부분과 문법적, 규칙적으로 달랐던 것이 어려웠습니다. | Terraform, Atlantis, AWS, GCP, k8s CI/CD |
 
 ## 서비스 쪽 조건
 
