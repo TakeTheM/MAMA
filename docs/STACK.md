@@ -11,7 +11,7 @@
 | 서비스 | 셀러 광고 한 건의 초안 작성 → 표현 검수 → 승인 → 게시·종료 기록 → 성과 요약을 관리하는 웹 서비스 |
 | 핵심 기능 (필수 스토리 기준) | AI 광고 초안 작성(US-01), 논란 표현 검수(US-03), 성과 요약·다음 광고 제안(US-05). 상태 전이·상태 기록, 소유 셀러 권한, 취소(US-06)·플랫폼 반려(US-07) 경로 포함 |
 | 팀이 **직접 써 본** 언어·도구 (이름만 들어 본 것은 제외) | React(5명 모두), TypeScript(임소리·윤미수·김태훈·이규민, 박하린은 확인 필요), Next.js(임소리·윤미수·박하린), React Native(임소리·박하린), Electron·Vercel(박하린), Python(FastAPI·Flask·Django)·Java(Spring Boot·JPA)·Docker·k8s·Cloudflare(이규민) |
-| 개발 기간 | 20시간 (팀 합계인지 1인당인지 확인 필요. mvp-scope.md에는 "8주"로 적혀 있어 맞춰야 함) |
+| 개발 기간 | 8주, 팀 합계 20시간 |
 | 화면 (웹 / 모바일, 반응형 여부) | 웹 (반응형 여부 확인 필요) |
 | 시연 방식 (로컬 / 외부 접속) | 배포 후 외부 접속 |
 | 제약 (비용, 설치 권한, 외부 서비스) | 무료로만. 설치 권한·외부 서비스 제한 없음. 5명 모두 Mac. LLM은 학교 제공 키 사용(제공사·한도 확인 필요). 간단한 회원가입·로그인 필요 |
@@ -57,7 +57,7 @@
 | 후보 | 장점 | 단점 | 20시간 기준 |
 | --- | --- | --- | --- |
 | ① FastAPI 자체 JWT + httpOnly 쿠키 | 인증·권한이 FastAPI 한 곳. 외부 서비스가 늘지 않음. FastAPI 공식 튜토리얼 방식 | 가입·로그인·로그아웃·해시·만료를 직접 구현. 프록시를 거친 쿠키 전달은 확인 필요 | 1순위 |
-| ② Supabase Auth + FastAPI에서 JWKS 검증 | 가입·로그인이 이미 있음 | 서비스가 4개로 늘어남. 사용자 ID를 Neon과 맞춰야 함. Supabase 일시정지·메일 제한은 A안과 같음 | 2순위 |
+| ② Supabase Auth + FastAPI에서 JWKS 검증 | 가입·로그인이 이미 있음. DB와 같은 Supabase를 써서 서비스가 늘지 않음 | FastAPI에 JWKS 검증을 붙여야 함. Supabase 일시정지·메일 제한은 A안과 같음 | 2순위 |
 | ③ Auth.js (credentials) | Next.js 안에서 끝남 | 회원가입 기본 미제공, Better Auth로 편입됨. FastAPI와 토큰 공유를 직접 설계 | 비추천 |
 
 **Next.js ↔ FastAPI 호출 방식**
@@ -68,7 +68,7 @@
 | **Next.js rewrites 프록시 (권장)** | 불필요 | Vercel 도메인의 1st-party 쿠키 | Vercel 외부 프록시 120초 |
 | Route Handler BFF 프록시 | 불필요 | 쿠키·헤더를 직접 전달(코드 증가) | Hobby 함수 최대 300초, 함수 한도 사용 |
 
-- 콜드 스타트(약 1분) + Neon 깨우기 + LLM 응답이 120초에 가까워질 수 있습니다. 로그인 화면에서 `/api/health`를 먼저 불러 백엔드를 깨우고, 시연 직전에 미리 접속합니다. 그래도 넘으면 LLM 엔드포인트만 Route Handler나 폴링 구조로 바꿉니다.
+- 콜드 스타트(약 1분) + LLM 응답이 120초에 가까워질 수 있습니다. 로그인 화면에서 `/api/health`를 먼저 불러 백엔드를 깨우고, 시연 직전에 미리 접속합니다. 그래도 넘으면 LLM 엔드포인트만 Route Handler나 폴링 구조로 바꿉니다.
 
 **설치·실행 (C안)**
 
@@ -100,7 +100,7 @@ cp frontend/.env.example frontend/.env.local
 - 백엔드: FastAPI
 - DB: Supabase
 - UI 도구: Tailwind
-- 테스트 방식: Vitest
+- 테스트 방식: 프론트엔드 Vitest, 백엔드 Pytest
 - 시연·배포 환경: Vercel + Render
 
 ## 선택 이유 (팀 경험·기간·핵심 기능으로)
@@ -113,7 +113,8 @@ cp frontend/.env.example frontend/.env.local
 ## 선택하지 않은 안과 이유
 - **A안 (Next.js 풀스택 + Supabase):** 로그인이 기본 제공되고 배포가 단순해 20시간 기준으로는 가장 가볍다. 하지만 백엔드까지 TypeScript로 쓰면 이규민의 Python 백엔드 경험을 쓰지 못하고, 규칙이 Server Action·서버 컴포넌트·RLS에 나뉘어 서버/클라이언트 경계를 계속 신경 써야 한다.
 - **B안 (React(Vite) + FastAPI + Neon):** 백엔드는 C안과 같지만, 프론트를 팀 다수가 써 본 Next.js 대신 Vite로 만들어야 하고(Vite 경험자 확인 필요), 브라우저가 FastAPI를 직접 불러 CORS와 크로스사이트 쿠키 설정이 추가로 필요하다. 같은 백엔드라면 C안이 프론트 경험을 더 잘 살린다.
-- **C안을 고르며 감수하는 것:** 백엔드 일이 이규민 1명에게 몰리고, 로그인을 직접 구현해야 하며(Supabase Auth를 쓰지 않는 경우), 배포가 Vercel·Render·Supabase 3곳이고 Render 무료 서버는 15분 비활성 뒤 꺼진다. 대응은 "예상 어려움과 대응"에 있다. 개발 기간이 팀 합계 20시간으로 확정되면 이 부담 때문에 다시 검토한다.
+- **C안을 고르며 감수하는 것:** 백엔드 일이 이규민 1명에게 몰리고, 로그인을 직접 구현해야 하며(Supabase Auth를 쓰지 않는 경우), 배포가 Vercel·Render·Supabase 3곳이고 Render 무료 서버는 15분 비활성 뒤 꺼진다. 대응은 "예상 어려움과 대응"에 있다.
+- **재검토 결과 (2026-10-27):** 개발 기간이 8주, 팀 합계 20시간으로 확정된 뒤 다시 검토했고 C안을 유지한다. 원래 C안에서 바꾼 것은 DB 하나(Neon → Supabase)다. 유지 이유: 미정. 앞으로는 "예상 어려움과 대응" 표의 조건이 생길 때만 해당 부분을 바꾸고, 바꾼 내용은 이 문서에 기록한다.
 
 ## LLM 연결
 
@@ -133,6 +134,7 @@ cp frontend/.env.example frontend/.env.local
 | (B) 백엔드·로그인·배포가 이규민 1명에게 몰림 | API 계약을 먼저 정하고 프론트는 목업으로 병행 |
 | (B) Render·Neon 비활성 뒤 첫 요청 지연 | 시연 전에 미리 접속해 깨워 둠 |
 | (C) 백엔드가 이규민 1명에게 몰림 | 로그인·캠페인 생성 API 명세를 먼저 합의하고 프론트는 목업으로 병행 |
+| (C) Supabase Free는 1주 비활성 시 일시정지 | 시연 전에 일시정지 여부를 확인하고, 멈췄으면 대시보드에서 다시 켬 |
 | (C) 프록시를 거친 `Set-Cookie` 전달 | 첫 배포 때 로컬과 배포 환경에서 바로 시험 |
 | (C) 콜드 스타트 + LLM 응답이 Vercel 프록시 120초 초과 | `/api/health`로 미리 깨우기, 넘으면 LLM 엔드포인트만 Route Handler·폴링으로 변경 |
 | (C) 상태 이름·오류 형식이 Python과 TS에 따로 생김 | FastAPI를 기준으로 두고 TS 타입은 OpenAPI에서 생성하거나 한 파일에 모음 |
@@ -144,7 +146,6 @@ cp frontend/.env.example frontend/.env.local
 ## 확인할 것
 | 확인할 내용 | 담당 | 언제 |
 | --- | --- | --- |
-| 개발 기간 20시간이 팀 합계인지 1인당인지, mvp-scope.md "8주"와 맞추기 | 미정 | 미정 |
 | 학교 LLM 키의 제공사, 직접 키인지 게이트웨이 키인지, 호출 한도·유효 기간, 외부 배포 서버에서 써도 되는지 | 미정 | 미정 |
 | GitHub 저장소(TakeTheM 조직) public/private 여부 (private이면 Vercel Hobby 배포 불가) | 미정 | 미정 |
 | 배포·DB 계정 명의와 비밀값 공유 방법 | 미정 | 미정 |
@@ -154,7 +155,7 @@ cp frontend/.env.example frontend/.env.local
 | user-flows.md 상태 이름 정리 (상태 enum을 코드로 만들기 전) | 미정 | 미정 |
 | (C안 선택 시) 백엔드를 이규민 외에 누가 함께 맡을지, API 명세 합의 시점 | 미정 | 미정 |
 | (C안 선택 시) 로그인 방식 ①/② 선택, rewrites 프록시로 시작하는 방침 동의 | 미정 | 미정 |
-| (C안 선택 시) Python ORM·마이그레이션 도구, Neon 개발용/배포용 DB 분리 | 미정 | 미정 |
+| (C안 선택 시) Python ORM·마이그레이션 도구, Supabase 개발용/배포용 DB 분리 | 미정 | 미정 |
 | (C안 선택 시) 시연 전 백엔드 깨우기 담당 | 미정 | 미정 |
 
 ## 의견이 갈렸다면
