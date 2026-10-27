@@ -1,7 +1,7 @@
 # 기술 스택 결정 기록
 
 
-- 결정일:
+- 결정일: 2026.10.27
 - 근거: stack-inputs.md(팀 경험·조건), mvp-scope.md, backlog.md(필수 스토리)
 
 ## 우리 팀 상황
@@ -100,8 +100,8 @@ cp frontend/.env.example frontend/.env.local
 - 백엔드: FastAPI
 - DB: Supabase
 - UI 도구: Tailwind
-- 테스트 방식: 미정
-- 시연·배포 환경: 미정
+- 테스트 방식: Vitest
+- 시연·배포 환경: Vercel + Render
 
 ## 선택 이유 (팀 경험·기간·핵심 기능으로)
 1. **팀 경험:** 프론트는 Next.js를 써 본 임소리·윤미수·박하린이 바로 화면을 만들 수 있고, 백엔드는 FastAPI를 써 본 이규민의 경험을 살릴 수 있다. 두 경험을 모두 쓰는 조합이다.
