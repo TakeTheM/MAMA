@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 type BackendStatus = "확인 중" | "ok" | "연결 안 됨";
 
@@ -22,6 +23,9 @@ export default function Home() {
       <p className="text-zinc-600 dark:text-zinc-400">
         백엔드: <span data-testid="backend-status">{status}</span>
       </p>
+      <Link href="/campaigns/demo/publishing/schedule" className="rounded-full bg-emerald-800 px-6 py-3 text-white">
+        게시·집행 기록 데모 보기 →
+      </Link>
     </main>
   );
 }
