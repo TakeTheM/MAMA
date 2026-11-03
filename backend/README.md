@@ -2,6 +2,14 @@
 
 기술 선택·구현 범위 기록: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)
 
+API 명세: [OpenAPI 3.1 JSON](docs/openapi.json). 실행 중인 FastAPI 서버의 `/openapi.json` 응답을 수정 없이 저장한 파일입니다. 로컬 서버의 [Swagger UI](http://localhost:8000/docs)에서도 확인할 수 있습니다.
+
+서버 실행 후 `backend/`에서 다음 명령으로 명세를 갱신합니다.
+
+```bash
+curl --fail --silent --show-error http://127.0.0.1:8000/openapi.json -o docs/openapi.json
+```
+
 현재 백엔드는 SQLAlchemy 동기 Session + PyMySQL + MySQL 8.4, Alembic을 사용합니다. 프론트엔드는 health 화면 그대로이며, API는 Swagger에서 테스트합니다. **수동 승인은 AI 검수를 생략한 임시 진입 경로입니다.** 플랫폼 게시·집행은 사용자가 직접 하고 이 서비스에는 기록만 남깁니다.
 
 ### 처음 실행
