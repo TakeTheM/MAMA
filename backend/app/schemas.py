@@ -12,6 +12,11 @@ Content = Annotated[str, Field(min_length=1, max_length=10_000)]
 Channel = Literal["instagram", "x", "tiktok"]
 
 
+def omit_default(schema: dict) -> None:
+    # Omission creates an empty planning placeholder; an explicitly supplied value must be nonblank.
+    schema.pop("default", None)
+
+
 class ProductFields(BaseModel):
     product_name: str | None = Field(default=None, min_length=1, max_length=200)
     product_description: str | None = Field(default=None, min_length=1, max_length=10000)
@@ -140,7 +145,7 @@ class CampaignCreate(ProductFields, InputModel):
         extra="forbid",
         json_schema_extra={"example": {"content": "오늘 구운 빵을 만나보세요", "initial_budget_amount": 100000, "initial_budget_days": 7}},
     )
-    content: Content = ""
+    content: Content = Field(default="", json_schema_extra=omit_default)
     initial_budget_amount: Amount
     initial_budget_days: Days
 

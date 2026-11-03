@@ -14,6 +14,7 @@ from app.config import Settings, get_settings
 from app.database import Base, get_db, make_engine
 from main import app
 from app.llm import get_llm
+from llm_stub import FakeLLM
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
@@ -103,3 +104,15 @@ def register_login(client, email="seller@example.com", password="password-123"):
 def seller(client):
     register_login(client)
     return client
+
+
+@pytest.fixture
+def fake_llm(api):
+    fake = FakeLLM()
+    previous = app.dependency_overrides.get(get_llm)
+    app.dependency_overrides[get_llm] = lambda: fake
+    yield fake
+    if previous is not None:
+        app.dependency_overrides[get_llm] = previous
+    else:
+        app.dependency_overrides.pop(get_llm, None)

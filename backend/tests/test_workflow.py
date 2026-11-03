@@ -2,13 +2,10 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
 import pytest
-from fastapi import HTTPException
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
 
-from app.models import CampaignStatusHistory
 from conftest import register_login
-from test_drafts import BASE, PRODUCT, fake_llm, good_drafts
+from test_drafts import BASE
+from llm_stub import PRODUCT, good_drafts
 from test_reviews import drafted
 
 pytestmark = pytest.mark.mysql

@@ -1,7 +1,8 @@
 import pytest
 from fastapi import HTTPException
 
-from test_drafts import BASE, PRODUCT, FakeLLM, fake_llm, good_drafts
+from test_drafts import BASE
+from llm_stub import PRODUCT
 
 pytestmark = pytest.mark.mysql
 

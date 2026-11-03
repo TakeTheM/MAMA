@@ -10,7 +10,8 @@ from app.models import Campaign, CampaignStatusHistory, Performance
 from app.schemas import SummaryResult
 from conftest import register_login
 from test_campaigns import approved
-from test_drafts import BASE, PRODUCT, fake_llm, good_drafts
+from test_drafts import BASE
+from llm_stub import PRODUCT, good_drafts
 from main import app
 
 pytestmark = pytest.mark.mysql

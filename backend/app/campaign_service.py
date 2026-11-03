@@ -133,7 +133,8 @@ def edit_campaign(db: Session, campaign_id: int, owner_id: int, data: CampaignPa
     if "edit" not in allowed_actions(campaign):
         raise HTTPException(409, "현재 상태에서는 광고를 수정할 수 없습니다")
     changes = data.model_dump(exclude_unset=True)
-    if campaign.status != S.PLANNING and "channels" in changes and changes["channels"] != campaign.channels:
+    previous_channels = list(campaign.channels)
+    if campaign.status != S.PLANNING and previous_channels and "channels" in changes and changes["channels"] != campaign.channels:
         raise HTTPException(409, "초안 생성 후에는 채널을 변경할 수 없습니다")
     if "content" in changes and "drafts" in changes:
         raise HTTPException(422, "content와 drafts는 한 번에 하나만 수정해 주세요")
@@ -141,7 +142,10 @@ def edit_campaign(db: Session, campaign_id: int, owner_id: int, data: CampaignPa
         if key == "drafts" and value is None:
             raise HTTPException(422, "drafts는 null일 수 없습니다")
         setattr(campaign, key, value)
-    if campaign.drafts:
+    if campaign.status == S.REVISION_REQUESTED and not previous_channels and campaign.channels and not campaign.drafts:
+        # Legacy F-04 campaigns had only content; an explicit first channel selection upgrades them.
+        campaign.drafts = {channel: {"caption": campaign.content, "hashtags": []} for channel in campaign.channels}
+    if campaign.drafts or ("drafts" in changes and campaign.status != S.PLANNING):
         from copy import deepcopy
         from app.reviews import validated_drafts
         drafts = deepcopy(campaign.drafts)
