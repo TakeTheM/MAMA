@@ -10,6 +10,7 @@ from app.schemas import CampaignCreate, CampaignOut, CampaignPatch, EndInput, Pu
 
 ACTIONS = {
     S.PLANNING: ["edit", "approve"],
+    S.DRAFTED: ["edit"],
     S.APPROVED: ["schedule"],
     S.SCHEDULED: ["publish", "reject"],
     S.RUNNING: ["end"],
@@ -88,7 +89,10 @@ def edit_campaign(db: Session, campaign_id: int, owner_id: int, data: CampaignPa
     if "edit" not in ACTIONS[S(campaign.status)]:
         raise HTTPException(409, "현재 상태에서는 광고를 수정할 수 없습니다")
     for key, value in data.model_dump(exclude_unset=True).items():
+        if key == "drafts" and value is None:
+            raise HTTPException(422, "drafts는 null일 수 없습니다")
         setattr(campaign, key, value)
+    campaign.revision += 1
     campaign.updated_at = utcnow()
     db.commit()
     return present(db, campaign)
@@ -136,6 +140,7 @@ def transition(
         campaign.budget_days = None
     previous = campaign.status
     campaign.status = TARGETS[action]
+    campaign.revision += 1
     campaign.updated_at = now
     db.add(CampaignStatusHistory(
         campaign_id=campaign.id, previous_status=previous, next_status=campaign.status,

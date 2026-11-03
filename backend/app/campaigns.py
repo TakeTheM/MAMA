@@ -12,11 +12,18 @@ from app.schemas import (
     HistoryOut, PublishInput, RejectInput, ScheduleInput,
 )
 from app.security import Principal, get_principal
+from app.llm import LLMClient, get_llm
+from app import drafts
 
 router = APIRouter(prefix="/api/v1/campaigns", tags=["캠페인"])
 DB = Annotated[Session, Depends(get_db)]
 Authenticated = Annotated[Principal, Depends(get_principal)]
 CampaignID = Annotated[int, Path(gt=0, le=9_223_372_036_854_775_807)]
+
+
+@router.post("/{campaign_id}/generate-draft", response_model=CampaignOut, summary="F-01 채널별 초안 생성")
+def generate_draft(campaign_id: CampaignID, principal: Authenticated, db: DB, llm: Annotated[LLMClient, Depends(get_llm)]):
+    return drafts.generate(db, campaign_id, principal.user.id, llm)
 
 
 @router.post("", response_model=CampaignOut, status_code=201)

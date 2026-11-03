@@ -8,6 +8,50 @@ from app.models import CampaignStatus
 Amount = Annotated[int, Field(strict=True, gt=0, le=9_223_372_036_854_775_807)]
 Days = Annotated[int, Field(strict=True, gt=0, le=2_147_483_647)]
 Content = Annotated[str, Field(min_length=1, max_length=10_000)]
+Channel = Literal["instagram", "x", "tiktok"]
+
+
+class ProductFields(BaseModel):
+    product_name: str | None = Field(default=None, min_length=1, max_length=200)
+    product_description: str | None = Field(default=None, min_length=1, max_length=10000)
+    product_category: str | None = Field(default=None, min_length=1, max_length=100)
+    product_price: Annotated[int, Field(strict=True, ge=0, le=9_223_372_036_854_775_807)] | None = None
+    goal: str | None = Field(default=None, min_length=1, max_length=1000)
+    target_audience: str | None = Field(default=None, min_length=1, max_length=1000)
+    channels: list[Channel] = Field(default_factory=list, max_length=3)
+
+    @field_validator("product_name", "product_description", "product_category", "goal", "target_audience")
+    @classmethod
+    def nonblank_product(cls, value):
+        if value is not None and not value.strip():
+            raise ValueError("공백만 입력할 수 없습니다")
+        return value
+
+    @field_validator("channels")
+    @classmethod
+    def unique_channels(cls, value):
+        if len(value) != len(set(value)):
+            raise ValueError("채널은 중복할 수 없습니다")
+        return value
+
+
+class ChannelDraft(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    caption: Content
+    hashtags: list[Annotated[str, Field(min_length=1, max_length=100)]] = Field(max_length=50)
+
+    @field_validator("caption", "hashtags")
+    @classmethod
+    def reject_blank(cls, value):
+        values = [value] if isinstance(value, str) else value
+        if any(not item.strip() for item in values):
+            raise ValueError("캡션과 해시태그는 공백일 수 없습니다")
+        return value
+
+
+class DraftResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    drafts: dict[Channel, ChannelDraft]
 
 
 def parse_iso_datetime(value):
@@ -55,12 +99,12 @@ class TokenOut(BaseModel):
     expires_in: int = 900
 
 
-class CampaignCreate(InputModel):
+class CampaignCreate(ProductFields, InputModel):
     model_config = ConfigDict(
         extra="forbid",
         json_schema_extra={"example": {"content": "오늘 구운 빵을 만나보세요", "initial_budget_amount": 100000, "initial_budget_days": 7}},
     )
-    content: Content
+    content: Content = ""
     initial_budget_amount: Amount
     initial_budget_days: Days
 
@@ -72,10 +116,11 @@ class CampaignCreate(InputModel):
         return value
 
 
-class CampaignPatch(InputModel):
+class CampaignPatch(ProductFields, InputModel):
     content: Content | None = None
     initial_budget_amount: Amount | None = None
     initial_budget_days: Days | None = None
+    drafts: dict[Channel, ChannelDraft] | None = None
 
     @field_validator("content")
     @classmethod
@@ -137,6 +182,16 @@ class CampaignOut(BaseModel):
     id: int
     owner_id: int
     content: str
+    product_name: str | None
+    product_description: str | None
+    product_category: str | None
+    product_price: int | None
+    goal: str | None
+    target_audience: str | None
+    channels: list[Channel]
+    drafts: dict[Channel, ChannelDraft]
+    reference_campaign_id: int | None
+    revision: int
     status: CampaignStatus
     initial_budget_amount: int
     initial_budget_days: int
