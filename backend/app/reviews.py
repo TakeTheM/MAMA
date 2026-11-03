@@ -4,7 +4,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from app.campaign_service import history_snapshot, owned_campaign, present
+from app.campaign_service import history_snapshot, owned_campaign, present, review_retryable
 from app.database import utcnow
 from app.llm import LLMClient
 from app.models import CampaignStatus as S, CampaignStatusHistory
@@ -31,7 +31,7 @@ def current_operation(db, campaign_id, owner_id, revision):
 
 def request_review(db: Session, campaign_id: int, owner_id: int, llm: LLMClient, data: ReviewInput | None):
     campaign = owned_campaign(db, campaign_id, owner_id, lock=True)
-    retry = campaign.status == S.REVIEW_PENDING and campaign.review and campaign.review.get("status") == "failed"
+    retry = review_retryable(campaign)
     if campaign.status not in (S.DRAFTED, S.REVISION_REQUESTED) and not retry:
         raise HTTPException(409, "초안 생성됨·수정 요청 또는 검수 실패 상태에서만 요청할 수 있습니다")
     drafts = validated_drafts(campaign, data.model_dump()["drafts"] if data else None)

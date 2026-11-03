@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from fastapi import HTTPException
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr = SecretStr("")
     llm_base_url: str = "https://api.openai.com/v1"
     llm_model: str = ""
-    llm_timeout: float = 60
+    llm_timeout: float = Field(default=60, gt=0, le=120)
 
     def signing_key(self) -> str:
         key = self.jwt_secret.get_secret_value()

@@ -68,6 +68,7 @@ def test_review_failure_can_be_retried(seller, fake_llm):
     detail = seller.get(path).json()
     assert detail["status"] == "검수 대기" and not detail["can_approve"]
     assert detail["review"]["status"] == "failed"
+    assert seller.post(path + "/approve").status_code == 409
     fake_llm.handler = lambda task, payload: {"findings": []}
     assert seller.post(path + "/request-review").status_code == 200
     history = seller.get(path + "/history").json()

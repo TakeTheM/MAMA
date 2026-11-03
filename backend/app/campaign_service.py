@@ -9,21 +9,52 @@ from app.models import Campaign, CampaignStatus as S, CampaignStatusHistory
 from app.schemas import CampaignCreate, CampaignOut, CampaignPatch, EndInput, PublishInput, RejectInput, ScheduleInput
 
 ACTIONS = {
-    S.PLANNING: ["edit", "approve"],
-    S.DRAFTED: ["edit"],
-    S.REVIEW_PENDING: [],
-    S.APPROVED: ["schedule"],
-    S.SCHEDULED: ["publish", "reject"],
+    S.PLANNING: ["edit", "generate-draft", "cancel"],
+    S.DRAFTED: ["edit", "request-review", "cancel"],
+    S.REVIEW_PENDING: ["cancel"],
+    S.APPROVED: ["schedule", "cancel"],
+    S.SCHEDULED: ["publish", "reject", "cancel"],
     S.RUNNING: ["end"],
     S.ENDED: [],
-    S.REJECTED: ["request-revision"],
-    S.REVISION_REQUESTED: ["edit", "approve"],
+    S.REJECTED: ["request-revision", "cancel"],
+    S.REVISION_REQUESTED: ["edit", "request-review", "cancel"],
+    S.CANCELED: [],
 }
 TARGETS = {
     "approve": S.APPROVED, "schedule": S.SCHEDULED, "publish": S.RUNNING,
     "end": S.ENDED, "reject": S.REJECTED, "request-revision": S.REVISION_REQUESTED,
+    "cancel": S.CANCELED,
 }
 REVIEW_WARNING = "플랫폼 심사에 24시간 여유가 없습니다"
+
+
+def can_approve(campaign: Campaign) -> bool:
+    return bool(
+        campaign.status == S.REVIEW_PENDING and campaign.review
+        and campaign.review.get("status") == "completed"
+        and campaign.review_revision == campaign.revision
+    )
+
+
+def review_retryable(campaign: Campaign) -> bool:
+    return bool(campaign.status == S.REVIEW_PENDING and campaign.review and (
+        campaign.review.get("status") == "failed" or (
+            campaign.review.get("status") == "running" and utcnow() - campaign.updated_at >= timedelta(seconds=180)
+        )
+    ))
+
+
+def allowed_actions(campaign: Campaign) -> list[str]:
+    actions = ACTIONS[S(campaign.status)].copy()
+    if can_approve(campaign):
+        actions.extend(["approve", "request-revision"])
+        if campaign.review["findings"]:
+            actions.append("apply-suggestion")
+    elif review_retryable(campaign):
+        actions.extend(["request-review", "request-revision"])
+    if campaign.status == S.REVISION_REQUESTED and campaign.review and campaign.review.get("status") == "completed" and campaign.review_revision == campaign.revision and campaign.review["findings"]:
+        actions.append("apply-suggestion")
+    return actions
 
 
 def owned_campaign(db: Session, campaign_id: int, owner_id: int, *, lock=False) -> Campaign:
@@ -49,6 +80,8 @@ def history_snapshot(campaign: Campaign, reason: str | None = None) -> dict:
         "published_at": iso(campaign.published_at),
         "ended_at": iso(campaign.ended_at),
         "rejection_reason": reason,
+        "review_revision": campaign.review_revision,
+        "review_finding_count": len(campaign.review["findings"]) if campaign.review and campaign.review.get("status") == "completed" else None,
     }
 
 
@@ -66,7 +99,8 @@ def latest_rejection(db: Session, campaign: Campaign) -> str | None:
 
 def present(db: Session, campaign: Campaign, warnings: list[str] | None = None) -> CampaignOut:
     result = CampaignOut.model_validate(campaign)
-    result.allowed_actions = ACTIONS[S(campaign.status)].copy()
+    result.allowed_actions = allowed_actions(campaign)
+    result.can_approve = can_approve(campaign)
     result.warnings = warnings or []
     result.rejection_reason = latest_rejection(db, campaign)
     return result
@@ -87,12 +121,28 @@ def create_campaign(db: Session, owner_id: int, data: CampaignCreate) -> Campaig
 
 def edit_campaign(db: Session, campaign_id: int, owner_id: int, data: CampaignPatch) -> CampaignOut:
     campaign = owned_campaign(db, campaign_id, owner_id, lock=True)
-    if "edit" not in ACTIONS[S(campaign.status)]:
+    if "edit" not in allowed_actions(campaign):
         raise HTTPException(409, "현재 상태에서는 광고를 수정할 수 없습니다")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    changes = data.model_dump(exclude_unset=True)
+    if campaign.status != S.PLANNING and "channels" in changes and changes["channels"] != campaign.channels:
+        raise HTTPException(409, "초안 생성 후에는 채널을 변경할 수 없습니다")
+    if "content" in changes and "drafts" in changes:
+        raise HTTPException(422, "content와 drafts는 한 번에 하나만 수정해 주세요")
+    for key, value in changes.items():
         if key == "drafts" and value is None:
             raise HTTPException(422, "drafts는 null일 수 없습니다")
         setattr(campaign, key, value)
+    if campaign.drafts:
+        from copy import deepcopy
+        from app.reviews import validated_drafts
+        drafts = deepcopy(campaign.drafts)
+        if "content" in changes:
+            for draft in drafts.values():
+                draft["caption"] = changes["content"]
+        campaign.drafts = validated_drafts(campaign, drafts)
+        campaign.content = campaign.drafts[campaign.channels[0]]["caption"]
+    if campaign.review:
+        campaign.review = {**campaign.review, "status": "stale"}
     campaign.revision += 1
     campaign.updated_at = utcnow()
     db.commit()
@@ -104,7 +154,9 @@ def transition(
     data: ScheduleInput | PublishInput | EndInput | RejectInput | None = None,
 ) -> CampaignOut:
     campaign = owned_campaign(db, campaign_id, owner_id, lock=True)
-    if action not in ACTIONS[S(campaign.status)]:
+    if action not in allowed_actions(campaign):
+        if action == "cancel" and campaign.status in (S.RUNNING, S.ENDED):
+            raise HTTPException(409, "이미 올린 광고는 플랫폼에서 직접 중지해 주세요")
         raise HTTPException(409, "현재 상태에서는 요청한 작업을 할 수 없습니다")
     now = utcnow()
     reason = None
@@ -135,13 +187,18 @@ def transition(
 
     # Capture the old reservation before clearing it, including the rejection reason.
     snapshot = history_snapshot(campaign, reason)
-    if action == "request-revision":
+    if action == "request-revision" and campaign.status == S.REJECTED:
         campaign.scheduled_at = None
         campaign.budget_amount = None
         campaign.budget_days = None
+        if campaign.review:
+            campaign.review = {**campaign.review, "status": "stale"}
     previous = campaign.status
     campaign.status = TARGETS[action]
     campaign.revision += 1
+    if action == "request-revision" and previous == S.REVIEW_PENDING and campaign.review and campaign.review.get("status") == "completed":
+        # Moving to revision does not itself edit text, so suggestions remain applicable.
+        campaign.review_revision = campaign.revision
     campaign.updated_at = now
     db.add(CampaignStatusHistory(
         campaign_id=campaign.id, previous_status=previous, next_status=campaign.status,

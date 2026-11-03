@@ -19,6 +19,7 @@ class CampaignStatus(StrEnum):
     ENDED = "종료"
     REJECTED = "플랫폼 반려"
     REVISION_REQUESTED = "수정 요청"
+    CANCELED = "취소"
 
 
 class User(Base):
@@ -51,7 +52,7 @@ class Campaign(Base):
         CheckConstraint("budget_amount IS NULL OR budget_amount > 0", name="ck_campaign_amount"),
         CheckConstraint("budget_days IS NULL OR budget_days > 0", name="ck_campaign_days"),
         CheckConstraint(
-            "status IN ('기획중','초안 생성됨','검수 대기','승인됨','게시 예약됨','집행중','종료','플랫폼 반려','수정 요청')",
+            "status IN ('기획중','초안 생성됨','검수 대기','승인됨','게시 예약됨','집행중','종료','플랫폼 반려','수정 요청','취소')",
             name="ck_campaign_status",
         ),
         Index("ix_campaigns_owner_created", "owner_id", "created_at", "id"),

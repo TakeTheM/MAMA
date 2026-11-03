@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.database import Base, get_db, make_engine
 from main import app
+from app.llm import get_llm
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
@@ -59,6 +60,16 @@ def api(mysql_engine):
     )
     app.dependency_overrides[get_db] = db_override
     app.dependency_overrides[get_settings] = lambda: settings
+    class DefaultLLM:
+        def complete(self, task, payload, output_type):
+            if task == "draft":
+                value = {"drafts": {channel: {"caption": "오늘 구운 빵 🍞 #광고", "hashtags": ["#광고"]} for channel in payload["channels"]}}
+            elif task == "review":
+                value = {"findings": []}
+            else:
+                raise AssertionError("Unexpected LLM task")
+            return output_type.model_validate(value)
+    app.dependency_overrides[get_llm] = lambda: DefaultLLM()
     clients = []
 
     def new_client():

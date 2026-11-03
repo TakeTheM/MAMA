@@ -87,9 +87,14 @@ def history(campaign_id: CampaignID, principal: Authenticated, db: DB):
 
 
 @router.post("/{campaign_id}/approve", response_model=CampaignOut,
-             summary="수동 승인 (임시 경로, AI 검수 통과를 의미하지 않음)")
+             summary="검수 성공 후 사용자 승인 (위험 표현은 경고)")
 def approve(campaign_id: CampaignID, principal: Authenticated, db: DB):
     return service.transition(db, campaign_id, principal.user.id, "approve")
+
+
+@router.post("/{campaign_id}/cancel", response_model=CampaignOut)
+def cancel(campaign_id: CampaignID, principal: Authenticated, db: DB):
+    return service.transition(db, campaign_id, principal.user.id, "cancel")
 
 
 @router.post("/{campaign_id}/schedule", response_model=CampaignOut)
