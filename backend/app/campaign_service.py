@@ -11,6 +11,7 @@ from app.schemas import CampaignCreate, CampaignOut, CampaignPatch, EndInput, Pu
 ACTIONS = {
     S.PLANNING: ["edit", "approve"],
     S.DRAFTED: ["edit"],
+    S.REVIEW_PENDING: [],
     S.APPROVED: ["schedule"],
     S.SCHEDULED: ["publish", "reject"],
     S.RUNNING: ["end"],

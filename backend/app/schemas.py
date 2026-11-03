@@ -54,6 +54,41 @@ class DraftResult(BaseModel):
     drafts: dict[Channel, ChannelDraft]
 
 
+class Finding(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    channel: Channel
+    field: Literal["caption", "hashtags"] = "caption"
+    start: Annotated[int, Field(strict=True, ge=0)]
+    end: Annotated[int, Field(strict=True, gt=0)]
+    expression: str = Field(min_length=1, max_length=10000)
+    rule_id: Literal["R1", "R3", "R4", "R5"]
+    reason: str = Field(min_length=1, max_length=2000)
+    source_urls: list[str] = Field(default_factory=list, max_length=10)
+    replacement: str = Field(max_length=10000)
+
+
+class ReviewResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    findings: list[Finding] = Field(max_length=200)
+
+
+class ReviewInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    drafts: dict[Channel, ChannelDraft]
+
+
+class ApplySuggestionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    finding_index: Annotated[int, Field(strict=True, ge=0)]
+
+
+class ReviewOut(BaseModel):
+    status: Literal["running", "completed", "failed", "stale"]
+    findings: list[Finding]
+    error: str | None = None
+    policy: Literal["warn"] = "warn"
+
+
 def parse_iso_datetime(value):
     if isinstance(value, datetime):
         return value
@@ -192,6 +227,8 @@ class CampaignOut(BaseModel):
     drafts: dict[Channel, ChannelDraft]
     reference_campaign_id: int | None
     revision: int
+    review: ReviewOut | None
+    can_approve: bool = False
     status: CampaignStatus
     initial_budget_amount: int
     initial_budget_days: int

@@ -14,11 +14,34 @@ from app.schemas import (
 from app.security import Principal, get_principal
 from app.llm import LLMClient, get_llm
 from app import drafts
+from app import reviews
+from app.review_rules import SOURCES, TERMS
+from app.schemas import ApplySuggestionInput, ReviewInput, ReviewOut
 
 router = APIRouter(prefix="/api/v1/campaigns", tags=["캠페인"])
 DB = Annotated[Session, Depends(get_db)]
 Authenticated = Annotated[Principal, Depends(get_principal)]
 CampaignID = Annotated[int, Path(gt=0, le=9_223_372_036_854_775_807)]
+
+
+@router.get("/review-sources", summary="검수 근거 허용 목록과 팀 위험 표현 규칙")
+def review_sources(principal: Authenticated):
+    return {"sources": SOURCES, "terms": TERMS, "policy": "warn", "notice": "위험 표현 제안이며 법적 판단을 확정하지 않습니다"}
+
+
+@router.post("/{campaign_id}/request-review", response_model=CampaignOut, summary="검수 요청·재검수 (경고 정책)")
+def request_review(campaign_id: CampaignID, principal: Authenticated, db: DB, llm: Annotated[LLMClient, Depends(get_llm)], data: ReviewInput | None = None):
+    return reviews.request_review(db, campaign_id, principal.user.id, llm, data)
+
+
+@router.get("/{campaign_id}/review", response_model=ReviewOut | None)
+def get_review(campaign_id: CampaignID, principal: Authenticated, db: DB):
+    return service.owned_campaign(db, campaign_id, principal.user.id).review
+
+
+@router.post("/{campaign_id}/apply-suggestion", response_model=CampaignOut)
+def apply_suggestion(campaign_id: CampaignID, data: ApplySuggestionInput, principal: Authenticated, db: DB):
+    return reviews.apply_suggestion(db, campaign_id, principal.user.id, data.finding_index)
 
 
 @router.post("/{campaign_id}/generate-draft", response_model=CampaignOut, summary="F-01 채널별 초안 생성")
