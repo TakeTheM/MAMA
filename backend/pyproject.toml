@@ -5,6 +5,12 @@ description = "MAMA backend (FastAPI)"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi[standard]>=0.162.0",
+    "sqlalchemy>=2.0,<3",
+    "pymysql[rsa]>=1.1,<2",
+    "alembic>=1.16,<2",
+    "pydantic-settings>=2.10,<3",
+    "pyjwt>=2.10,<3",
+    "pwdlib[argon2]>=0.2,<1",
 ]
 
 [dependency-groups]
@@ -13,8 +19,9 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["../tests"]
+testpaths = ["tests"]
 pythonpath = ["."]
+markers = ["mysql: requires a dedicated MySQL test database"]
 
 [tool.fastapi]
 entrypoint = "main:app"
