@@ -75,6 +75,7 @@ httpx==0.28.1
     # via
     #   fastapi
     #   fastapi-cloud-cli
+    #   mama-backend
 httpx2==2.16.0
     # via fastapi
 httpx2-jsfetch==1.0 ; sys_platform == 'emscripten'

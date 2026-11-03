@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     jwt_audience: str = "mama-api"
     cookie_secure: bool = False
     allowed_origins: str = "http://localhost:3000,http://localhost:8000"
+    llm_api_key: SecretStr = SecretStr("")
+    llm_base_url: str = "https://api.openai.com/v1"
+    llm_model: str = ""
+    llm_timeout: float = 60
 
     def signing_key(self) -> str:
         key = self.jwt_secret.get_secret_value()

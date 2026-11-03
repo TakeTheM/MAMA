@@ -11,6 +11,7 @@ TABLE_OPTIONS = {"mysql_engine": "InnoDB", "mysql_charset": "utf8mb4"}
 
 class CampaignStatus(StrEnum):
     PLANNING = "기획중"
+    DRAFTED = "초안 생성됨"
     APPROVED = "승인됨"
     SCHEDULED = "게시 예약됨"
     RUNNING = "집행중"
@@ -49,7 +50,7 @@ class Campaign(Base):
         CheckConstraint("budget_amount IS NULL OR budget_amount > 0", name="ck_campaign_amount"),
         CheckConstraint("budget_days IS NULL OR budget_days > 0", name="ck_campaign_days"),
         CheckConstraint(
-            "status IN ('기획중','승인됨','게시 예약됨','집행중','종료','플랫폼 반려','수정 요청')",
+            "status IN ('기획중','초안 생성됨','승인됨','게시 예약됨','집행중','종료','플랫폼 반려','수정 요청')",
             name="ck_campaign_status",
         ),
         Index("ix_campaigns_owner_created", "owner_id", "created_at", "id"),
@@ -59,6 +60,16 @@ class Campaign(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     content: Mapped[str] = mapped_column(Text)
+    product_name: Mapped[str | None] = mapped_column(String(200))
+    product_description: Mapped[str | None] = mapped_column(Text)
+    product_category: Mapped[str | None] = mapped_column(String(100))
+    product_price: Mapped[int | None] = mapped_column(BigInteger)
+    goal: Mapped[str | None] = mapped_column(String(1000))
+    target_audience: Mapped[str | None] = mapped_column(String(1000))
+    channels: Mapped[list] = mapped_column(JSON, default=list)
+    drafts: Mapped[dict] = mapped_column(JSON, default=dict)
+    reference_campaign_id: Mapped[int | None] = mapped_column(BigInteger)
+    revision: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(30), default=CampaignStatus.PLANNING)
     initial_budget_amount: Mapped[int] = mapped_column(BigInteger)
     initial_budget_days: Mapped[int] = mapped_column(Integer)
