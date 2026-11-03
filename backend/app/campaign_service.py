@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import utcnow
-from app.models import Campaign, CampaignStatus as S, CampaignStatusHistory
+from app.models import Campaign, CampaignStatus as S, CampaignStatusHistory, Performance
 from app.schemas import CampaignCreate, CampaignOut, CampaignPatch, EndInput, PublishInput, RejectInput, ScheduleInput
 
 ACTIONS = {
@@ -15,10 +15,11 @@ ACTIONS = {
     S.APPROVED: ["schedule", "cancel"],
     S.SCHEDULED: ["publish", "reject", "cancel"],
     S.RUNNING: ["end"],
-    S.ENDED: [],
+    S.ENDED: ["save-performance"],
     S.REJECTED: ["request-revision", "cancel"],
     S.REVISION_REQUESTED: ["edit", "request-review", "cancel"],
     S.CANCELED: [],
+    S.EVALUATED: [],
 }
 TARGETS = {
     "approve": S.APPROVED, "schedule": S.SCHEDULED, "publish": S.RUNNING,
@@ -103,6 +104,14 @@ def present(db: Session, campaign: Campaign, warnings: list[str] | None = None) 
     result.can_approve = can_approve(campaign)
     result.warnings = warnings or []
     result.rejection_reason = latest_rejection(db, campaign)
+    if campaign.status == S.ENDED:
+        performance = db.scalar(select(Performance).where(Performance.campaign_id == campaign.id))
+        if performance:
+            if performance.summary_status != "running" or utcnow() - performance.updated_at >= timedelta(seconds=180):
+                result.allowed_actions.append("summarize-performance")
+            result.can_complete_evaluation = bool(performance.summary_status == "completed" and performance.summary and performance.next_ad_suggestions)
+            if result.can_complete_evaluation:
+                result.allowed_actions.append("complete-evaluation")
     return result
 
 
@@ -155,7 +164,7 @@ def transition(
 ) -> CampaignOut:
     campaign = owned_campaign(db, campaign_id, owner_id, lock=True)
     if action not in allowed_actions(campaign):
-        if action == "cancel" and campaign.status in (S.RUNNING, S.ENDED):
+        if action == "cancel" and campaign.status in (S.RUNNING, S.ENDED, S.EVALUATED):
             raise HTTPException(409, "이미 올린 광고는 플랫폼에서 직접 중지해 주세요")
         raise HTTPException(409, "현재 상태에서는 요청한 작업을 할 수 없습니다")
     now = utcnow()

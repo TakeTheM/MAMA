@@ -17,11 +17,33 @@ from app import drafts
 from app import reviews
 from app.review_rules import SOURCES, TERMS
 from app.schemas import ApplySuggestionInput, ReviewInput, ReviewOut
+from app.schemas import PerformanceInput, PerformanceOut
+from app import performance
 
 router = APIRouter(prefix="/api/v1/campaigns", tags=["캠페인"])
 DB = Annotated[Session, Depends(get_db)]
 Authenticated = Annotated[Principal, Depends(get_principal)]
 CampaignID = Annotated[int, Path(gt=0, le=9_223_372_036_854_775_807)]
+
+
+@router.put("/{campaign_id}/performance", response_model=PerformanceOut, summary="F-05 성과 저장·ROAS 계산·AI 요약")
+def save_performance(campaign_id: CampaignID, data: PerformanceInput, principal: Authenticated, db: DB, llm: Annotated[LLMClient, Depends(get_llm)]):
+    return performance.save(db, campaign_id, principal.user.id, data, llm)
+
+
+@router.get("/{campaign_id}/performance", response_model=PerformanceOut)
+def get_performance(campaign_id: CampaignID, principal: Authenticated, db: DB):
+    return performance.get_performance(db, campaign_id, principal.user.id)
+
+
+@router.post("/{campaign_id}/summarize-performance", response_model=PerformanceOut)
+def summarize_performance(campaign_id: CampaignID, principal: Authenticated, db: DB, llm: Annotated[LLMClient, Depends(get_llm)]):
+    return performance.summarize(db, campaign_id, principal.user.id, llm)
+
+
+@router.post("/{campaign_id}/complete-evaluation", response_model=CampaignOut)
+def complete_evaluation(campaign_id: CampaignID, principal: Authenticated, db: DB):
+    return performance.complete_evaluation(db, campaign_id, principal.user.id)
 
 
 @router.get("/review-sources", summary="검수 근거 허용 목록과 팀 위험 표현 규칙")

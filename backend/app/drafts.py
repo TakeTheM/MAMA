@@ -1,16 +1,29 @@
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from app.campaign_service import history_snapshot, owned_campaign, present
 from app.database import utcnow
 from app.llm import LLMClient
-from app.models import CampaignStatus as S, CampaignStatusHistory
+from app.models import Campaign, CampaignStatus as S, CampaignStatusHistory, Performance
 from app.schemas import DraftResult
 
 
 def feedback_context(db: Session, owner_id: int) -> tuple[int | None, dict | None]:
-    # F-05 adds the evaluated-performance lookup when that data becomes available.
-    return None, None
+    from app.performance import metric_payload
+    row = db.execute(
+        select(Campaign, Performance).join(Performance, Performance.campaign_id == Campaign.id)
+        .where(Campaign.owner_id == owner_id, Campaign.status == S.EVALUATED, Performance.evaluated_at.is_not(None))
+        .order_by(Performance.evaluated_at.desc(), Campaign.id.desc()).limit(1)
+    ).first()
+    if row is None:
+        return None, None
+    previous, performance = row
+    return previous.id, {
+        "ad_copy": {"content": previous.content, "drafts": previous.drafts},
+        "metrics": metric_payload(performance), "summary": performance.summary,
+        "next_ad_suggestions": performance.next_ad_suggestions,
+    }
 
 
 def generate(db: Session, campaign_id: int, owner_id: int, llm: LLMClient):

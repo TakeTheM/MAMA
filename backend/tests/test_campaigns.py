@@ -63,7 +63,7 @@ def test_full_normal_flow(seller):
     assert posted.json()["published_at"].endswith("Z")
     ended = seller.post(path + "/end")
     assert ended.json()["status"] == "종료"
-    assert ended.json()["allowed_actions"] == []
+    assert ended.json()["allowed_actions"] == ["save-performance"]
     assert seller.get(path).json()["status"] == "종료"
     history = seller.get(path + "/history").json()
     assert [row["next_status"] for row in history] == ["기획중", "초안 생성됨", "검수 대기", "승인됨", "게시 예약됨", "집행중", "종료"]

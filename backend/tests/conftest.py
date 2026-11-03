@@ -66,6 +66,8 @@ def api(mysql_engine):
                 value = {"drafts": {channel: {"caption": "오늘 구운 빵 🍞 #광고", "hashtags": ["#광고"]} for channel in payload["channels"]}}
             elif task == "review":
                 value = {"findings": []}
+            elif task == "performance":
+                value = {"summary": "입력한 광고 성과를 확인했습니다", "next_ad_suggestions": ["다음 광고의 문구를 비교해 보세요"]}
             else:
                 raise AssertionError("Unexpected LLM task")
             return output_type.model_validate(value)

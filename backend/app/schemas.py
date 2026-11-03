@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, BeforeValidator, ConfigDict, EmailStr, Field, field_validator
@@ -229,6 +230,7 @@ class CampaignOut(BaseModel):
     revision: int
     review: ReviewOut | None
     can_approve: bool = False
+    can_complete_evaluation: bool = False
     status: CampaignStatus
     initial_budget_amount: int
     initial_budget_days: int
@@ -259,3 +261,51 @@ class HistoryOut(BaseModel):
     changed_by: int
     recorded_at: datetime
     snapshot: dict
+
+
+Metric = Annotated[int, Field(strict=True, ge=0, le=9_223_372_036_854_775_807)]
+NonblankText = Annotated[str, Field(min_length=1, max_length=10000)]
+
+
+class PerformanceInput(InputModel):
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"example": {
+        "impressions": 1000, "clicks": 50, "conversions": 5, "ad_spend": 100000, "revenue": 250000,
+    }})
+    impressions: Metric
+    clicks: Metric
+    conversions: Metric
+    ad_spend: Metric
+    revenue: Metric
+
+
+class SummaryResult(InputModel):
+    summary: NonblankText
+    next_ad_suggestions: list[NonblankText] = Field(min_length=1, max_length=10)
+
+    @field_validator("summary", "next_ad_suggestions")
+    @classmethod
+    def reject_blank_summary(cls, value):
+        values = [value] if isinstance(value, str) else value
+        if any(not text.strip() for text in values):
+            raise ValueError("요약과 제안은 공백일 수 없습니다")
+        return value
+
+
+class PerformanceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    campaign_id: int
+    impressions: int
+    clicks: int
+    conversions: int
+    ad_spend: int
+    revenue: int
+    roas: Decimal | None
+    roas_display: str = ""
+    summary: str | None
+    next_ad_suggestions: list[str]
+    summary_status: Literal["pending", "running", "completed", "failed"]
+    last_error: str | None
+    revision: int
+    evaluated_at: datetime | None
+    created_at: datetime
+    updated_at: datetime

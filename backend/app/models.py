@@ -1,7 +1,8 @@
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, Integer, JSON, String, Text
+from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, Integer, JSON, Numeric, String, Text
+from decimal import Decimal
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base, UTCDateTime, utcnow
@@ -20,6 +21,7 @@ class CampaignStatus(StrEnum):
     REJECTED = "플랫폼 반려"
     REVISION_REQUESTED = "수정 요청"
     CANCELED = "취소"
+    EVALUATED = "성과 평가 완료"
 
 
 class User(Base):
@@ -52,7 +54,7 @@ class Campaign(Base):
         CheckConstraint("budget_amount IS NULL OR budget_amount > 0", name="ck_campaign_amount"),
         CheckConstraint("budget_days IS NULL OR budget_days > 0", name="ck_campaign_days"),
         CheckConstraint(
-            "status IN ('기획중','초안 생성됨','검수 대기','승인됨','게시 예약됨','집행중','종료','플랫폼 반려','수정 요청','취소')",
+            "status IN ('기획중','초안 생성됨','검수 대기','승인됨','게시 예약됨','집행중','종료','플랫폼 반려','수정 요청','취소','성과 평가 완료')",
             name="ck_campaign_status",
         ),
         Index("ix_campaigns_owner_created", "owner_id", "created_at", "id"),
@@ -97,3 +99,29 @@ class CampaignStatusHistory(Base):
     changed_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     recorded_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     snapshot: Mapped[dict] = mapped_column(JSON)
+
+
+class Performance(Base):
+    __tablename__ = "campaign_performance"
+    __table_args__ = (
+        CheckConstraint("impressions >= 0 AND clicks >= 0 AND conversions >= 0 AND ad_spend >= 0 AND revenue >= 0", name="ck_performance_nonnegative"),
+        CheckConstraint("summary_status IN ('pending','running','completed','failed')", name="ck_performance_summary_status"),
+        TABLE_OPTIONS,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    campaign_id: Mapped[int] = mapped_column(ForeignKey("campaigns.id"), unique=True)
+    impressions: Mapped[int] = mapped_column(BigInteger)
+    clicks: Mapped[int] = mapped_column(BigInteger)
+    conversions: Mapped[int] = mapped_column(BigInteger)
+    ad_spend: Mapped[int] = mapped_column(BigInteger)
+    revenue: Mapped[int] = mapped_column(BigInteger)
+    roas: Mapped[Decimal | None] = mapped_column(Numeric(30, 6))
+    summary: Mapped[str | None] = mapped_column(Text)
+    next_ad_suggestions: Mapped[list] = mapped_column(JSON, default=list)
+    summary_status: Mapped[str] = mapped_column(String(20), default="pending")
+    last_error: Mapped[str | None] = mapped_column(String(1000))
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    evaluated_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
