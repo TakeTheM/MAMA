@@ -1,6 +1,6 @@
 # MAMA 백엔드 — MVP F-01~F-05
 
-FastAPI + SQLAlchemy 동기 Session + MySQL 8.4로 광고 기획·초안·검수·승인·게시 기록·성과 평가를 관리합니다. 프론트엔드와 외부 광고 플랫폼 연동은 포함하지 않습니다.
+FastAPI + SQLAlchemy 동기 Session으로 광고 기획·초안·검수·승인·게시 기록·성과 평가를 관리합니다. MySQL 8.4와 PostgreSQL(Supabase 포함)을 지원합니다. 프론트엔드와 외부 광고 플랫폼 연동은 포함하지 않습니다.
 
 API 명세는 [OpenAPI JSON](docs/openapi.json)이며, 서버 실행 후 [Swagger UI](http://localhost:8000/docs)에서 호출할 수 있습니다. 기술 변경 기록은 [IMPLEMENTATION.md](docs/IMPLEMENTATION.md), 기능별 상세는 [F-01](docs/F01.md)·[F-02](docs/F02.md)·[F-03](docs/F03.md)·[F-05](docs/F05.md)를 참고합니다.
 
@@ -29,7 +29,7 @@ LLM_TIMEOUT=60
 
 | 환경변수 | 용도 |
 | --- | --- |
-| `DATABASE_URL` | `mysql+pymysql://mama:<MYSQL_PASSWORD>@127.0.0.1:3307/mama` |
+| `DATABASE_URL` | MySQL은 `mysql+pymysql://...`, PostgreSQL은 `postgresql://...` 또는 `postgresql+psycopg://...` |
 | `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD` | Compose 개발 DB 초기 비밀번호 |
 | `MYSQL_PORT` | 개발 DB 호스트 포트, 기본 3307. 변경하면 접속 URL도 변경 |
 | `JWT_SECRET` | 32바이트 이상 서명 키 |
@@ -39,6 +39,34 @@ LLM_TIMEOUT=60
 | `TEST_DATABASE_URL` | 개발 DB와 다른 전용 MySQL 테스트 DB, 이름은 `_test`로 끝나야 함 |
 
 기존 MySQL도 개발용 DB를 만든 뒤 `DATABASE_URL`로 연결할 수 있습니다. URL의 비밀번호에 예약 문자가 있으면 percent encoding이 필요합니다. Compose 비밀번호는 볼륨 최초 생성에만 적용됩니다. 마이그레이션 0002~0005는 기존 캠페인에 상품 입력·초안·검수·성과 데이터를 추가하며 기존 광고·상태·예산을 보존합니다.
+
+## PostgreSQL·Supabase 연결 및 DB 점검
+
+배포 환경변수 또는 로컬 `.env`의 `DATABASE_URL`에 Supabase 대시보드에서 복사한 Transaction pooler 연결 문자열을 설정합니다. 아래는 형식 예시이며 실제 비밀번호는 커밋하지 않습니다.
+
+```dotenv
+DATABASE_URL=postgresql://postgres.<project-ref>:<password>@<pooler-host>:6543/postgres?sslmode=require
+```
+
+코드는 URL의 드라이버만 `postgresql+psycopg`로 바꾸며 사용자명·비밀번호·호스트·SSL 옵션은 유지합니다. PostgreSQL 연결은 `NullPool`과 `connect_args={"prepare_threshold": None}`을 사용합니다. 자체 연결 풀을 두지 않고 psycopg의 자동 prepared statement를 끕니다. asyncpg는 사용하지 않습니다. 참고: [SQLAlchemy NullPool](https://docs.sqlalchemy.org/en/20/core/pooling.html#sqlalchemy.pool.NullPool), [psycopg prepared statements](https://www.psycopg.org/psycopg3/docs/advanced/prepare.html).
+
+`psycopg[binary]`는 의존성에 포함되어 있습니다. 환경변수를 바꾸면 서버를 재시작하고, 새 DB에는 마이그레이션을 적용합니다.
+
+```bash
+uv sync --locked
+uv run alembic upgrade head
+uv run fastapi dev main.py --port 8000
+```
+
+배포 후에는 다음 URL을 확인합니다.
+
+```text
+GET https://<배포-도메인>/api/health/db
+```
+
+연결 성공 응답은 HTTP 200과 `{"db": 1}`입니다. 실제 연결을 열어 `SELECT 1`을 실행하며 인증 토큰은 필요하지 않습니다. DB 미설정·연결 실패는 접속 정보 없이 503을 반환합니다. 기존 `/api/health`는 DB 연결과 별개로 서버 실행 여부만 확인합니다. DB 점검 성공은 연결 확인이며, 업무 테이블 준비는 마이그레이션으로 확인합니다.
+
+마이그레이션과 UTC 날짜 타입은 두 DB를 모두 지원합니다. MySQL에서 PostgreSQL로 주소를 바꾸는 것만으로 기존 데이터가 복사되지는 않습니다.
 
 ## 인증
 
@@ -149,6 +177,13 @@ uv export --frozen --format requirements-txt --no-hashes --no-emit-project --no-
 ```
 
 테스트 전용 URL 기본값은 `mysql+pymysql://mama_test:local-test-only@127.0.0.1:3308/mama_test`입니다. 테스트 DB는 `_test` 이름과 개발 DB 분리 여부를 검사하며 각 테스트 전후 테이블을 정리합니다. TEST_DATABASE_URL이 없으면 DB 테스트를 skip합니다. SQLite로 잠금을 대체하지 않습니다.
+
+동일한 전체 테스트를 PostgreSQL에서도 실행할 수 있습니다. 기존 `mysql` 테스트 마커·fixture 이름은 호환을 위해 유지하며 실제 DB는 URL로 선택합니다.
+
+```bash
+docker compose --env-file .env --profile postgres-test up -d --wait postgres-test
+TEST_DATABASE_URL=postgresql://mama_test:local-pg-test-only@127.0.0.1:55432/mama_pg_test uv run pytest
+```
 
 LLM 테스트는 결정 가능한 대역과 HTTP MockTransport를 사용하며 실제 계정의 API 키를 사용하지 않습니다. 실제 모델 연결 검증은 키·모델 설정 후 별도로 필요합니다.
 

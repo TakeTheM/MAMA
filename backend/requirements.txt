@@ -129,6 +129,10 @@ protobuf==7.36.2
     # via
     #   googleapis-common-protos
     #   opentelemetry-proto
+psycopg==3.3.7
+    # via mama-backend
+psycopg-binary==3.3.7 ; implementation_name != 'pypy'
+    # via psycopg
 pwdlib==0.3.1
     # via mama-backend
 pycparser==3.12 ; implementation_name != 'PyPy'
@@ -214,6 +218,8 @@ typing-inspection==0.4.4
     #   fastapi
     #   pydantic
     #   pydantic-settings
+tzdata==2026.6 ; sys_platform == 'win32'
+    # via psycopg
 urllib3==2.8.0
     # via
     #   requests

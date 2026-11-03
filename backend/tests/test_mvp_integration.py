@@ -5,7 +5,9 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import event, text
+from sqlalchemy import event
+from sqlalchemy import MetaData, Table
+from app.database import utcnow
 from sqlalchemy.orm import Session
 
 from app import campaign_service
@@ -97,8 +99,12 @@ def test_upgrade_preserves_legacy_campaign_data(api, mysql_engine):
         command.downgrade(config, "base")
         command.upgrade(config, "0001")
         with mysql_engine.begin() as connection:
-            owner_id = connection.execute(text("INSERT INTO users (email,password_hash,created_at) VALUES ('legacy@example.com','not-a-login-hash',UTC_TIMESTAMP(6))")).lastrowid
-            campaign_id = connection.execute(text("INSERT INTO campaigns (owner_id,content,status,initial_budget_amount,initial_budget_days,created_at,updated_at) VALUES (:owner,'기존 광고','승인됨',100000,7,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))"), {"owner": owner_id}).lastrowid
+            metadata = MetaData()
+            users = Table("users", metadata, autoload_with=connection)
+            campaigns = Table("campaigns", metadata, autoload_with=connection)
+            now = utcnow().replace(tzinfo=None)
+            owner_id = connection.execute(users.insert().values(email="legacy@example.com", password_hash="not-a-login-hash", created_at=now)).inserted_primary_key[0]
+            campaign_id = connection.execute(campaigns.insert().values(owner_id=owner_id, content="기존 광고", status="승인됨", initial_budget_amount=100000, initial_budget_days=7, created_at=now, updated_at=now)).inserted_primary_key[0]
         command.upgrade(config, "head")
         with Session(mysql_engine) as db:
             campaign = db.get(Campaign, campaign_id)

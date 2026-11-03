@@ -38,6 +38,24 @@ services:
       timeout: 5s
       retries: 40
 
+  postgres-test:
+    image: postgres:17
+    profiles: [postgres-test]
+    environment:
+      POSTGRES_DB: mama_pg_test
+      POSTGRES_USER: mama_test
+      POSTGRES_PASSWORD: local-pg-test-only
+    ports:
+      - "127.0.0.1:${POSTGRES_TEST_PORT:-55432}:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mama_test -d mama_pg_test"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
 volumes:
   mysql_data:
   mysql_test_data:
+  postgres_test_data:

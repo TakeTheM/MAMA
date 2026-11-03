@@ -6,6 +6,7 @@ requires-python = ">=3.13"
 dependencies = [
     "fastapi[standard]>=0.162.0",
     "sqlalchemy>=2.0,<3",
+    "psycopg[binary]>=3.2,<4",
     "pymysql[rsa]>=1.1,<2",
     "alembic>=1.16,<2",
     "pydantic-settings>=2.10,<3",
@@ -22,7 +23,7 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-markers = ["mysql: requires a dedicated MySQL test database"]
+markers = ["mysql: requires a dedicated MySQL or PostgreSQL test database"]
 
 [tool.fastapi]
 entrypoint = "main:app"

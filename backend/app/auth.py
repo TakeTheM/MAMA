@@ -40,7 +40,7 @@ def register(data: Credentials, db: DB):
         db.commit()
     except IntegrityError as exc:
         db.rollback()
-        if getattr(exc.orig, "args", (None,))[0] == 1062:
+        if getattr(exc.orig, "args", (None,))[0] == 1062 or getattr(exc.orig, "sqlstate", None) == "23505":
             raise HTTPException(409, "이미 사용 중인 이메일입니다") from None
         raise
     return user
