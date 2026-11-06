@@ -1,7 +1,11 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.auth import router as auth_router
 from app.campaigns import router as campaign_router
+from app.database import get_engine
 
 app = FastAPI(
     title="MAMA API", version="0.1.0",
@@ -19,3 +23,12 @@ app.include_router(campaign_router)
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/health/db")
+def health_db(engine: Engine = Depends(get_engine)) -> dict[str, int]:
+    try:
+        with engine.connect() as connection:
+            return {"db": connection.execute(text("SELECT 1")).scalar_one()}
+    except SQLAlchemyError:
+        raise HTTPException(503, "DB 연결을 확인할 수 없습니다") from None

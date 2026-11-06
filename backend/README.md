@@ -10,34 +10,41 @@ API 명세: [OpenAPI 3.1 JSON](docs/openapi.json). 실행 중인 FastAPI 서버�
 curl --fail --silent --show-error http://127.0.0.1:8000/openapi.json -o docs/openapi.json
 ```
 
-현재 백엔드는 SQLAlchemy 동기 Session + PyMySQL + MySQL 8.4, Alembic을 사용합니다. 프론트엔드는 health 화면 그대로이며, API는 Swagger에서 테스트합니다. **수동 승인은 AI 검수를 생략한 임시 진입 경로입니다.** 플랫폼 게시·집행은 사용자가 직접 하고 이 서비스에는 기록만 남깁니다.
+현재 백엔드는 SQLAlchemy 동기 Session을 사용하며 **DB 접속 정보는 `DATABASE_URL` 하나로 전달**합니다. PostgreSQL/Supabase는 psycopg를 사용합니다. MySQL은 기존 환경 호환용으로만 지원하며, MySQL 설치나 `MYSQL_*` 환경변수는 필요하지 않습니다.
 
 ### 처음 실행
 
-Python 3.13·uv·Docker Desktop이 필요합니다. `backend/` 디렉터리에서 실행합니다.
+Python 3.13·uv와 접속 가능한 PostgreSQL DB가 필요합니다. `backend/`에서 환경변수를 전달한 뒤 실행합니다. `.env`는 선택 사항이며 프로세스 환경변수가 우선합니다.
 
 ```bash
+export DATABASE_URL='postgresql://user:password@host:6543/postgres?sslmode=require'
+export JWT_SECRET='replace-with-a-random-secret-at-least-32-bytes'
+# HTTPS 배포 환경에서는 true로 지정
+export COOKIE_SECURE=false
+
 uv sync --locked
-python3 scripts/init_backend_env.py
-docker compose --env-file .env up -d --wait mysql
 uv run alembic upgrade head
 uv run fastapi dev main.py --port 8000
 ```
 
-설정 생성 명령은 무작위 JWT 키와 개발 DB 비밀번호를 `.env`에 기록하고, 기존 파일은 덮어쓰지 않습니다. `.env.example`을 복사해 빈 `.env`를 만들었다면 아래 표에 따라 직접 채웁니다. 실제 비밀값은 커밋하지 않습니다.
+배포 플랫폼에서는 같은 변수를 환경변수 설정에 등록합니다. JWT 키는 `python3 -c 'import secrets; print(secrets.token_hex(48))'`로 생성할 수 있습니다. 환경변수 변경 후 서버를 재시작하세요. 기존 MySQL 데이터가 PostgreSQL로 자동 이전되지는 않습니다. 마이그레이션은 지정한 DB에 테이블을 생성합니다.
 
 | 환경변수 | 용도 |
 | --- | --- |
-| `DATABASE_URL` | `mysql+pymysql://mama:<MYSQL_PASSWORD>@127.0.0.1:3307/mama` |
-| `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD` | Compose 개발 DB 초기 비밀번호 |
-| `JWT_SECRET` | 32바이트 이상 서명 키. 예: `python3 -c 'import secrets; print(secrets.token_hex(48))'` |
+| `DATABASE_URL` | PostgreSQL 접속 URL. `postgresql://`, `postgres://`, `postgresql+psycopg://` 지원 |
+| `JWT_SECRET` | 로그인 토큰 서명 키, 32바이트 이상 |
 | `JWT_ISSUER`, `JWT_AUDIENCE` | 기본값 모두 `mama-api` |
 | `COOKIE_SECURE` | 로컬 HTTP `false`, HTTPS 환경 `true` |
-| `ALLOWED_ORIGINS` | 재발급에 허용할 Origin을 쉼표로 구분. 포트도 일치해야 함 |
-| `MYSQL_PORT` | 개발 DB 호스트 포트. 기본 3307, 변경하면 `DATABASE_URL`도 변경 |
-| `TEST_DATABASE_URL` | 개발 DB와 다른 전용 테스트 DB. 아래 테스트 절 참고 |
+| `ALLOWED_ORIGINS` | 토큰 재발급에 허용할 Origin을 쉼표로 구분 |
+| `TEST_DATABASE_URL` | 개발 DB와 다른 전용 테스트 DB. 이름은 `_test`로 끝나야 함 |
+| `LLM_API_KEY`, `LLM_MODEL` | 추후 설정 가능. 비어 있으면 AI 생성 요청만 `503` 반환 |
+| `LLM_BASE_URL` | 기본 `https://api.openai.com/v1` |
 
-비밀번호에 URL 예약 문자가 있으면 접속 문자열에서는 percent encoding이 필요합니다. 기존 MySQL을 쓰는 경우 Compose를 띄우지 않고 별도 개발 DB를 만든 뒤 `DATABASE_URL`을 지정합니다. Compose 비밀번호는 볼륨 최초 생성에만 적용되므로 기존 볼륨을 둔 채 환경변수만 바꾸면 DB 계정 비밀번호가 바뀌지 않습니다.
+Supabase Transaction pooler에는 `NullPool`과 `prepare_threshold=None`을 적용합니다. URL의 포트·사용자·`sslmode`는 공급자가 제공한 값을 사용하세요. 비밀번호의 URL 예약 문자는 percent encoding이 필요합니다. 기존 MySQL URL `mysql+pymysql://...`도 사용할 수 있습니다.
+
+`GET /api/health`는 서버 상태를, `GET /api/health/db`는 실제 DB 연결을 확인합니다. 연결 성공 응답은 `{"db": 1}`이며 실패 시 접속 정보를 노출하지 않고 `503`을 반환합니다.
+
+로컬 `.env`가 필요하면 `.env.example`을 복사해 채우거나 `python3 scripts/init_backend_env.py`로 JWT 키만 생성할 수 있습니다. 기존 파일은 덮어쓰지 않습니다.
 
 ### 인증 API
 
@@ -79,23 +86,19 @@ Access Token은 15분, Refresh 세션은 로그인부터 7일입니다. 재발�
 - 다시 고치기에서는 현재 예약 정보를 비웁니다. 기존 예약·반려 사유는 이력에 보존하고 수정 화면용 `rejection_reason`도 응답합니다. 재예약 기본 예산은 최초 입력값입니다.
 - 상태 변경과 이력 저장은 같은 트랜잭션입니다. 동일 캠페인의 변경은 행 잠금으로 직렬화하며, 충돌 시 현재 상태를 기준으로 거절합니다.
 
-### MySQL 통합 테스트
+### DB 통합 테스트
 
-환경 생성 명령은 다음 전용 테스트 URL도 설정합니다. 직접 설정할 때는 개발 DB를 사용하지 않습니다.
-
-```text
-TEST_DATABASE_URL=mysql+pymysql://mama_test:local-test-only@127.0.0.1:3308/mama_test
-```
-
-`backend/` 디렉터리에서 실행합니다.
+개발 DB와 다른 전용 PostgreSQL 테스트 DB를 준비하고 URL을 지정합니다. 테스트 계정에는 마이그레이션과 테이블 정리 권한이 필요합니다.
 
 ```bash
-docker compose --env-file .env --profile test up -d --wait mysql-test
+export TEST_DATABASE_URL='postgresql://user:password@host:5432/mama_test'
 uv run pytest
 uv run alembic check
 ```
 
-테스트는 테스트 DB에 마이그레이션을 적용하고 각 테스트 전후 업무 테이블을 비웁니다. 이름이 `_test`로 끝나지 않거나 개발 DB와 동일한 접속 대상은 거절합니다. `TEST_DATABASE_URL`이 없으면 DB 테스트는 skip하고 health 테스트만 실행합니다. SQLite로 잠금을 대신하지 않습니다.
+`alembic check`는 `DATABASE_URL`의 스키마를 확인합니다. 테스트는 `TEST_DATABASE_URL`에 마이그레이션을 적용하고 각 테스트 전후 업무 테이블을 비웁니다. 이름이 `_test`로 끝나지 않거나 개발 DB와 동일한 접속 대상은 거절합니다. 테스트 URL이 없으면 DB 통합 테스트는 건너뜁니다. SQLite로 잠금을 대신하지 않습니다.
+
+기존 MySQL 전용 테스트 환경도 사용할 수 있습니다. `compose.yaml`은 해당 로컬 DB를 선택적으로 띄우는 용도이며 서버 실행의 필수 단계가 아닙니다. 이 경우에만 Compose의 `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD`를 별도로 지정합니다.
 
 의존성을 바꾸면 `uv.lock`과 백엔드 배포용 `requirements.txt`을 함께 갱신합니다.
 

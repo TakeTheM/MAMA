@@ -7,11 +7,10 @@ from alembic.config import Config
 from dotenv import dotenv_values
 from fastapi.testclient import TestClient
 from sqlalchemy import delete
-from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
-from app.database import Base, get_db, make_engine
+from app.database import Base, get_db, make_engine, normalize_database_url
 from main import app
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -22,14 +21,17 @@ def mysql_engine():
     values = dotenv_values(BACKEND_ROOT / ".env")
     test_url = os.environ.get("TEST_DATABASE_URL") or values.get("TEST_DATABASE_URL")
     if not test_url:
-        pytest.skip("TEST_DATABASE_URL is required for MySQL integration tests")
-    parsed = make_url(test_url)
+        pytest.skip("TEST_DATABASE_URL is required for database integration tests")
+    parsed = normalize_database_url(test_url)
     if not parsed.database or not parsed.database.endswith("_test"):
         pytest.fail("Refusing to modify a database whose name does not end in _test")
     development_url = os.environ.get("DATABASE_URL") or values.get("DATABASE_URL")
     if development_url:
-        development = make_url(development_url)
-        if (parsed.host, parsed.port or 3306, parsed.database) == (development.host, development.port or 3306, development.database):
+        development = normalize_database_url(development_url)
+        def target(url):
+            default_port = 5432 if url.drivername == "postgresql+psycopg" else 3306
+            return (url.drivername, url.host, url.port or default_port, url.database)
+        if target(parsed) == target(development):
             pytest.fail("TEST_DATABASE_URL must not point to the development database")
     config = Config(str(BACKEND_ROOT / "alembic.ini"))
     config.attributes["database_url"] = test_url
