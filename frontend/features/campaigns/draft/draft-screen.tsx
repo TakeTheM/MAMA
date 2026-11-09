@@ -94,12 +94,12 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
         </div>
 
         <div className={styles.footer}>
-          <button className={ui.ghost} type="button" disabled={session.pending} onClick={async () => {
+          {campaign.allowedActions.includes("regenerate") ? <button className={ui.ghost} type="button" disabled={session.pending} onClick={async () => {
             const channel = active;
             const next = await session.run((api) => api.regenerateChannel(campaign.id, channel), `${channel} 초안을 다시 만들었어요.`);
             const fresh = next?.drafts[channel];
             if (fresh) setDrafts((current) => ({ ...current, [channel]: fresh }));
-          }}><Icon name="redo" size={16} />이 채널 다시 만들기</button>
+          }}><Icon name="redo" size={16} />이 채널 다시 만들기</button> : <span />}
           <div className={styles.footerActions}>
             <button className={ui.secondary} type="button" disabled={session.pending || !dirty.length} onClick={() => void save()}>저장</button>
             <button className={ui.primary} type="button" disabled={session.pending} onClick={async () => {

@@ -2,7 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { type Campaign, type Mutation, type PublishingAdapter, PublishingError } from "./model";
-import { demoStoreAdapter } from "./demo-bridge";
+import { AuthRequirement } from "@/components/auth/auth";
+import { createHttpPublishingAdapter } from "./http-adapter";
 import { createMockAdapter, type Scenario } from "./mock-adapter";
 
 type Session = {
@@ -19,18 +20,23 @@ type Session = {
 const SessionContext = createContext<Session | null>(null);
 const DemoContext = createContext<{ scenario: Scenario; changeScenario: (value: Scenario) => void } | null>(null);
 
-export function PublishingProvider({ campaignId, children, adapter }: {
-  campaignId: string; children: ReactNode; adapter?: PublishingAdapter;
+/**
+ * 게시 화면 데이터. 기본은 FastAPI를 부르고, adapter를 넣으면(테스트) 그것을 쓴다.
+ * demo를 켜면 시나리오를 바꿔 볼 수 있는 mock으로 움직인다.
+ */
+export function PublishingProvider({ campaignId, children, adapter, demo = false }: {
+  campaignId: string; children: ReactNode; adapter?: PublishingAdapter; demo?: boolean;
 }) {
   const [scenario, setScenario] = useState<Scenario>("approved");
-  // 목록에 있는 데모 캠페인이면 같은 저장소를 쓰고, "demo"는 시나리오 도구로 상태를 바꿔 볼 수 있다.
-  const [stored] = useState(() => (adapter ? null : demoStoreAdapter(campaignId)));
-  const source = adapter ?? stored ?? undefined;
-  return <DemoContext.Provider value={source ? null : { scenario, changeScenario: setScenario }}>
-    <SessionProvider key={`${campaignId}:${scenario}`} campaignId={campaignId} scenario={scenario} adapter={source}>
-      {children}
-    </SessionProvider>
-  </DemoContext.Provider>;
+  const [http] = useState(() => (adapter || demo ? null : createHttpPublishingAdapter()));
+  const source = adapter ?? http ?? undefined;
+  return <AuthRequirement required={source === http && http !== null}>
+    <DemoContext.Provider value={demo && !adapter ? { scenario, changeScenario: setScenario } : null}>
+      <SessionProvider key={`${campaignId}:${scenario}`} campaignId={campaignId} scenario={scenario} adapter={source}>
+        {children}
+      </SessionProvider>
+    </DemoContext.Provider>
+  </AuthRequirement>;
 }
 
 function SessionProvider({ campaignId, scenario, adapter, children }: {

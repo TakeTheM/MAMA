@@ -5,7 +5,8 @@ import {
 } from "./model";
 
 /*
- * 백엔드(FastAPI)가 생기기 전까지 쓰는 mock.
+ * 테스트용 mock. 실제 화면은 http-api.ts로 FastAPI를 부른다.
+ * 백엔드(backend/app/campaign_service.py)와 같은 흐름을 흉내 낸다.
  * 상태 전이 허용 여부, 입력 검사, L1·L2·L3 대신 만든 예시 결과, ROAS 계산은 여기에만 둔다.
  * 실제 서비스에서는 이 규칙이 모두 FastAPI로 간다 (CLAUDE.md). 화면 코드는 이 규칙을 다시 만들지 않는다.
  * 저장은 메모리에만 한다(새로고침하면 처음 예시로 돌아간다).
@@ -18,8 +19,8 @@ const ALLOWED: Partial<Record<CampaignStatus, CampaignAction[]>> = {
   기획중: ["save-plan", "generate-draft", "cancel"],
   "초안 생성됨": ["save-draft", "regenerate", "request-review", "cancel"],
   // 위험 표현은 경고만 한다. 검수를 마치면 사장님이 확인하고 승인하거나, 고친 뒤 다시 검수할 수 있다.
-  "검수 대기": ["approve", "apply-fix", "save-draft", "request-review"],
-  "수정 요청": ["save-draft", "apply-fix", "request-review"],
+  "검수 대기": ["approve", "request-review"],
+  "수정 요청": ["save-draft", "request-review"],
   "게시 예약됨": ["cancel"],
   종료: ["submit-performance", "complete-evaluation"],
 };
@@ -56,7 +57,7 @@ function review(campaign: Campaign): RiskFinding[] {
       findings.push({
         id: `${channel}-${item.phrase}`, channel, rule: item.rule, ruleLabel: RULE_LABEL[item.rule],
         quote: item.phrase, title: `“${item.phrase}”`, reason: item.reason, source: SOURCES[item.rule],
-        suggestion: copy.caption.replace(item.phrase, item.fix), replacement: item.fix, applied: false,
+        suggestion: item.fix, replacement: item.fix, applied: false,
       });
     }
     if (!hasAdMark(copy)) {
@@ -190,11 +191,7 @@ const toNumber = (value: string) => Number(String(value).replace(/,/g, ""));
 
 export type MockOptions = { delay?: number; now?: () => Date; actorId?: string; failNext?: "load" | "save" | "llm" };
 
-export function createMockCampaignApi(options: MockOptions = {}): CampaignApi & {
-  /** 게시 화면 mock과 같은 저장소를 쓰기 위한 연결 (데모 전용) */
-  peek(id: string): Campaign | undefined;
-  replace(campaign: Campaign): void;
-} {
+export function createMockCampaignApi(options: MockOptions = {}): CampaignApi {
   const now = options.now ?? (() => new Date());
   const actor = options.actorId ?? ACTOR;
   let failNext = options.failNext;
@@ -203,8 +200,14 @@ export function createMockCampaignApi(options: MockOptions = {}): CampaignApi & 
   const pause = () => new Promise<void>((resolve) => setTimeout(resolve, options.delay ?? 300));
 
   function allowedFor(campaign: Campaign): CampaignAction[] {
-    // 요약(L3)이 없으면 평가 완료를 허용하지 않는다 (US-05).
-    return (ALLOWED[campaign.status] ?? []).filter((action) => action !== "complete-evaluation" || Boolean(campaign.performance?.summary));
+    return (ALLOWED[campaign.status] ?? []).filter((action) => {
+      // 요약(L3)이 없으면 평가 완료를 허용하지 않는다 (US-05).
+      if (action === "complete-evaluation") return Boolean(campaign.performance?.summary);
+      // 백엔드와 같이: 검수를 마친 문구만 승인, 실패했거나 경고가 있을 때만 다시 검수.
+      if (campaign.status === "검수 대기" && action === "approve") return campaign.canApprove;
+      if (campaign.status === "검수 대기" && action === "request-review") return Boolean(campaign.reviewError) || campaign.findings.length > 0;
+      return true;
+    });
   }
   function snapshot(campaign: Campaign): Campaign {
     return structuredClone({ ...campaign, allowedActions: allowedFor(campaign) });
@@ -268,9 +271,6 @@ export function createMockCampaignApi(options: MockOptions = {}): CampaignApi & 
   }
 
   return {
-    peek: (id) => store.get(id),
-    replace: (campaign) => { store.set(campaign.id, structuredClone(campaign)); },
-
     async listCampaigns() {
       await pause();
       if (failNext === "load") { failNext = undefined; throw new ApiError("network", "캠페인 목록을 불러오지 못했어요. 다시 시도해 주세요."); }
@@ -310,11 +310,6 @@ export function createMockCampaignApi(options: MockOptions = {}): CampaignApi & 
       if (!campaign.plan.channels.includes(channel)) throw new ApiError("validation", "고르지 않은 채널입니다.");
       maybeFail("save");
       campaign.drafts[channel] = { caption: copy.caption, hashtags: copy.hashtags.filter((tag) => tag.trim()) };
-      if (campaign.status === "검수 대기") {
-        // 검수하지 않은 문구는 승인하지 않는다. 다시 검수해야 승인 버튼이 켜진다.
-        campaign.canApprove = false;
-        campaign.reviewOutdated = true;
-      }
       return commit(campaign);
     },
     async regenerateChannel(id, channel) {
@@ -336,36 +331,15 @@ export function createMockCampaignApi(options: MockOptions = {}): CampaignApi & 
       if (failNext === "llm") {
         // 검수(L2) 실패: 상태는 검수 대기 그대로, 승인 버튼은 꺼진 채로 둔다.
         failNext = undefined;
-        campaign.findings = []; campaign.canApprove = false; campaign.reviewOutdated = false;
+        campaign.findings = []; campaign.canApprove = false;
         campaign.reviewError = "검수 결과를 받지 못했어요. 잠시 뒤 다시 시도해 주세요.";
         return commit(campaign);
       }
       campaign.reviewError = undefined;
-      campaign.reviewOutdated = false;
+     
       campaign.findings = review(campaign);
       // 검수 성공 = 승인 가능. 위험 표현은 경고로만 보여 주고 상태를 바꾸지 않는다.
       campaign.canApprove = true;
-      return commit(campaign);
-    },
-    async applyFix(id, findingId) {
-      await pause();
-      const campaign = requireAction(id, "apply-fix");
-      const finding = campaign.findings.find((item) => item.id === findingId);
-      if (!finding) throw new ApiError("not_found", "고쳐 쓴 문장을 찾을 수 없습니다.");
-      if (finding.applied) throw new ApiError("conflict", "이미 적용한 문장입니다.");
-      const copy = campaign.drafts[finding.channel];
-      if (!copy) throw new ApiError("conflict", "문구를 찾을 수 없습니다.");
-      if (finding.rule === "R1") copy.hashtags = ["#광고", ...copy.hashtags.filter((tag) => tag !== "#광고")];
-      else if (finding.quote && finding.replacement !== undefined && copy.caption.includes(finding.quote)) {
-        // 지금 문구에서 이 표현만 바꾼다. 앞서 적용한 수정은 그대로 둔다.
-        copy.caption = copy.caption.replace(finding.quote, finding.replacement);
-      } else throw new ApiError("conflict", "문구가 바뀌어서 이 제안을 적용할 수 없어요. 직접 고친 뒤 다시 검수를 요청해 주세요.");
-      finding.applied = true;
-      // 남은 제안의 '고쳐 쓴 문장'도 바뀐 문구 기준으로 다시 보여 준다.
-      for (const other of campaign.findings) {
-        if (other.applied || other.channel !== finding.channel || !other.quote || other.replacement === undefined) continue;
-        other.suggestion = copy.caption.replace(other.quote, other.replacement);
-      }
       return commit(campaign);
     },
     async approve(id) {

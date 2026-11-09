@@ -74,7 +74,10 @@ function PlanForm({ campaignId, initial }: { campaignId: string | null; initial:
       if (!savedId) { router.replace(`/campaigns/${encodeURIComponent(saved.id)}/plan`); return; }
       setPending(null);
     } catch (failure) {
-      setError(asApiError(failure));
+      const error = asApiError(failure);
+      // 저장은 됐는데 초안 생성에서 실패하면, 다시 시도할 때 같은 캠페인을 쓴다.
+      if (error.campaignId) setSavedId(error.campaignId);
+      setError(error);
       setPending(null);
     }
   }

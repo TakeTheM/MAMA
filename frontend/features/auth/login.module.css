@@ -1,0 +1,7 @@
+.page { display: flex; align-items: center; justify-content: center; padding: 48px 16px; background: #fafafa; }
+.card { width: 100%; max-width: 420px; background: #fff; border: 1px solid #ebebeb; border-radius: 16px; padding: 36px 32px; display: flex; flex-direction: column; gap: 24px; }
+.head { display: flex; flex-direction: column; gap: 6px; }
+.head h1 { font-size: 26px; font-weight: 700; }
+.switch { font-size: 14px; color: #6b6b6b; text-align: center; }
+.switch button { background: none; border: 0; padding: 0; color: #111; font-weight: 600; }
+@media (max-width: 479px) { .card { padding: 28px 20px; } }

@@ -1,23 +1,24 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { AuthRequirement } from "@/components/auth/auth";
+import { createHttpCampaignApi } from "./http-api";
 import { type Campaign, type CampaignApi, ApiError } from "./model";
-import { createMockCampaignApi } from "./mock-api";
 
-// 데모용 저장소 하나를 모든 화면이 함께 쓴다(브라우저 메모리, 새로고침하면 초기화).
-// 백엔드가 생기면 /api/... 를 부르는 구현으로 바꾸고 이 자리에서만 갈아 끼운다.
-let demoApi: ReturnType<typeof createMockCampaignApi> | null = null;
-export function getDemoApi() {
-  demoApi ??= createMockCampaignApi();
-  return demoApi;
+// 실제 화면은 FastAPI(/api/v1/campaigns)를 부른다. 테스트는 CampaignApiProvider로 mock을 넣는다.
+let httpApi: CampaignApi | null = null;
+function defaultApi() {
+  httpApi ??= createHttpCampaignApi();
+  return httpApi;
 }
 
 const ApiContext = createContext<CampaignApi | null>(null);
+/** 다른 구현(테스트용 mock 등)을 넣을 때 쓴다. 이때는 로그인을 요구하지 않는다. */
 export function CampaignApiProvider({ api, children }: { api: CampaignApi; children: ReactNode }) {
-  return <ApiContext.Provider value={api}>{children}</ApiContext.Provider>;
+  return <ApiContext.Provider value={api}><AuthRequirement required={false}>{children}</AuthRequirement></ApiContext.Provider>;
 }
 export function useCampaignApi(): CampaignApi {
-  return useContext(ApiContext) ?? getDemoApi();
+  return useContext(ApiContext) ?? defaultApi();
 }
 
 export function asApiError(value: unknown) {
@@ -57,13 +58,17 @@ export function useCampaign(id: string) {
       if (success) setNotice(success);
       return next;
     } catch (failure) {
-      if (mounted.current) setError(asApiError(failure));
+      if (mounted.current) {
+        setError(asApiError(failure));
+        // 요청이 실패해도 백엔드 상태가 바뀌었을 수 있다(예: 검수 실패 기록). 최신 상태를 다시 읽는다.
+        api.getCampaign(id).then((data) => { if (mounted.current) setCampaign(data); }).catch(() => undefined);
+      }
       return null;
     } finally {
       lock.current = false;
       if (mounted.current) setPending(false);
     }
-  }, [api]);
+  }, [api, id]);
 
   const clearError = useCallback(() => setError(null), []);
   return { api, campaign, loadError, error, pending, notice, reload, run, clearError };

@@ -17,8 +17,8 @@ import styles from "./publishing.module.css";
 export function PublishingShell({ children }: { children: ReactNode }) {
   const demo = useDemoScenario();
   const { campaign, pending, mutate } = usePublishingSession();
-  return <AppShell active="campaigns" notice={<DemoNotice>
-    {demo && <details><summary>데모 도구</summary><div className={ui.demoPanel}><label htmlFor="scenario">테스트 시나리오</label><select id="scenario" value={demo.scenario} disabled={pending} onChange={(event) => demo.changeScenario(event.target.value as Scenario)}>{SCENARIOS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div></details>}
+  return <AppShell active="campaigns" notice={demo && <DemoNotice>
+    {<details><summary>데모 도구</summary><div className={ui.demoPanel}><label htmlFor="scenario">테스트 시나리오</label><select id="scenario" value={demo.scenario} disabled={pending} onChange={(event) => demo.changeScenario(event.target.value as Scenario)}>{SCENARIOS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div></details>}
   </DemoNotice>}>
     {campaign && <SharedHeading name={campaign.name} status={campaign.status} detail={`${campaign.product} · ${campaign.channels.join(", ")}`} canceledFrom={canceledFrom(campaign.status, campaign.history)} pending={pending}
       onCancel={campaign.allowedActions.includes("cancel") ? () => mutate({ action: "cancel" }) : undefined} />}
@@ -133,7 +133,7 @@ function Feedback() {
   const { pending, error, notice } = usePublishingSession();
   return <div className={styles.feedback}>{pending && <p role="status">기록을 저장하고 있습니다…</p>}{error && <p id="action-error" role="alert" className={styles.error}>{error.message}</p>}<p role="status" aria-live="polite" className={styles.success}>{notice}</p></div>;
 }
-function actorName(actor: string) { return actor === "seller-demo" ? "사장님 (seller-demo)" : actor; }
+function actorName(actor: string) { return actor === "seller-demo" ? "사장님" : actor; }
 function HistoryPanel({ campaign }: { campaign: Campaign }) {
   return <aside className={styles.card} aria-label="상태 기록"><div className={styles.cardTitle}><h2>상태 기록</h2><span className={styles.help}>{campaign.history.length}건</span></div>
     {campaign.history.length ? <ol className={styles.timeline}>{[...campaign.history].reverse().map((entry, index) => <li key={`${entry.at}-${index}`}><i /><div><h3>{entry.from} → {entry.to}</h3><p><time dateTime={entry.at}>{formatTime(entry.at)}</time> · {actorName(entry.actor)}</p>{entry.reason && <blockquote>{entry.reason}</blockquote>}</div></li>)}</ol> : <p className={styles.help}>아직 상태 변경 기록이 없습니다.</p>}

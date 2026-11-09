@@ -18,10 +18,12 @@ export type RiskFinding = {
   id: string; channel: Channel; rule: RiskRule; ruleLabel: string;
   /** 문구 안의 위험 표현. 표시가 빠진 경우(R1)는 null */
   quote: string | null;
-  title: string; reason: string; source: { title: string; url: string };
-  /** 화면에 보여 줄 고쳐 쓴 문장(현재 문구 기준) */
+  title: string; reason: string;
+  /** 팀이 확인한 근거 자료. 목록에 없는 링크면 비어 있다 */
+  source?: { title: string; url: string };
+  /** 고쳐 쓴 표현 (위험 표현 자리에 넣을 말) */
   suggestion: string;
-  /** 위험 표현 자리에 넣을 말. 적용하면 이 표현만 바꾼다 */
+  /** 위험 표현 자리에 넣을 말. 적용하면 이 표현만 바꾼다. 없으면(R1 표시 누락) #광고를 붙인다 */
   replacement?: string;
   applied: boolean;
 };
@@ -37,7 +39,7 @@ export type Performance = {
 
 export type CampaignAction =
   | "save-plan" | "generate-draft" | "save-draft" | "regenerate" | "request-review"
-  | "apply-fix" | "approve" | "submit-performance" | "complete-evaluation" | "cancel";
+  | "approve" | "submit-performance" | "complete-evaluation" | "cancel";
 
 export type Campaign = {
   id: string; ownerId: string; name: string; status: CampaignStatus; updatedAt: string;
@@ -52,8 +54,8 @@ export type Campaign = {
    */
   canApprove: boolean;
   reviewError?: string;
-  /** 검수 뒤에 문구를 직접 고쳐서 다시 검수해야 하는 상태 */
-  reviewOutdated?: boolean;
+  /** 검수(L2)가 아직 끝나지 않음 */
+  reviewPending?: boolean;
   schedule?: { scheduledAt: string; amount: number; days: number };
   publishedAt?: string; endedAt?: string; rejectionReason?: string;
   performance?: Performance;
@@ -66,12 +68,14 @@ export type CampaignSummary = Pick<Campaign, "id" | "name" | "status" | "updated
 
 export type ApiErrorCode = "not_found" | "forbidden" | "network" | "validation" | "conflict" | "llm";
 export class ApiError extends Error {
+  /** 저장은 됐지만 다음 단계에서 실패했을 때, 이미 만들어진 캠페인 id */
+  campaignId?: string;
   constructor(public code: ApiErrorCode, message: string, public fields: Record<string, string> = {}) {
     super(message);
   }
 }
 
-/** 화면이 쓰는 API. 지금은 mock-api.ts가 구현하고, 백엔드가 생기면 /api/... 호출로 바꾼다. */
+/** 화면이 쓰는 API. 실제 화면은 http-api.ts(FastAPI)를, 테스트는 mock-api.ts를 쓴다. */
 export interface CampaignApi {
   listCampaigns(): Promise<CampaignSummary[]>;
   getCampaign(id: string): Promise<Campaign>;
@@ -82,7 +86,6 @@ export interface CampaignApi {
   saveDraft(id: string, channel: Channel, copy: ChannelCopy): Promise<Campaign>;
   regenerateChannel(id: string, channel: Channel): Promise<Campaign>;
   requestReview(id: string, drafts?: Partial<Record<Channel, ChannelCopy>>): Promise<Campaign>;
-  applyFix(id: string, findingId: string): Promise<Campaign>;
   approve(id: string): Promise<Campaign>;
   submitPerformance(id: string, input: PerformanceInput): Promise<Campaign>;
   completeEvaluation(id: string): Promise<Campaign>;

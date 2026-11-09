@@ -2,7 +2,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, expect, test, vi } from "vitest";
 import { CampaignApiProvider } from "../features/campaigns/api-context";
 import { createMockCampaignApi } from "../features/campaigns/mock-api";
-import { ReviewScreen } from "../features/campaigns/review/review-screen";
+import type { RiskFinding } from "../features/campaigns/model";
+import { ReviewScreen, applyFinding } from "../features/campaigns/review/review-screen";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace: vi.fn() }) }));
@@ -39,27 +40,26 @@ test("경고가 남아 있으면 한 번 더 확인받고 승인한다", async (
 test("제안을 모두 적용하고 다시 검수하면 경고 없이 바로 승인한다", async () => {
   render(<CampaignApiProvider api={createMockCampaignApi({ delay: 0 })}><ReviewScreen campaignId="a" /></CampaignApiProvider>);
   await screen.findByText("위험 표현 2개를 찾았어요");
-  for (let i = 0; i < 2; i += 1) {
-    fireEvent.click(screen.getAllByRole("button", { name: "적용" })[0]);
-    await screen.findByText("고쳐 쓴 문장을 적용했어요. 다시 검수를 요청해 주세요.");
-  }
+  fireEvent.click(screen.getAllByRole("button", { name: "적용" })[0]);
+  fireEvent.click(screen.getAllByRole("button", { name: "적용" })[0]);
   expect(screen.getAllByRole("button", { name: "적용됨" })).toHaveLength(2);
-  expect(screen.getByText("위험 표현이 없어요")).toBeDefined();
+  expect(screen.getByText("고친 문구로 다시 검수를 요청해 주세요")).toBeDefined();
+  expect(approveButton().disabled).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "다시 검수 요청" }));
-  await screen.findByRole("button", { name: "다시 검수 요청" });
+  expect(await screen.findByText("위험 표현이 없어요")).toBeDefined();
   await waitFor(() => expect(approveButton().disabled).toBe(false));
   fireEvent.click(approveButton());
   expect(screen.queryByRole("alertdialog")).toBeNull();
   await waitFor(() => expect(push).toHaveBeenCalledWith("/campaigns/a/publishing/schedule"));
 });
 
-test("검수 뒤 직접 고치면 다시 검수할 때까지 승인을 막고, 고친 문구도 금지어로 다시 거른다", async () => {
+test("검수 뒤 직접 고치면 다시 검수할 때까지 승인을 막고, 고친 문구를 보내 다시 거른다", async () => {
   render(<CampaignApiProvider api={createMockCampaignApi({ delay: 0 })}><ReviewScreen campaignId="a" /></CampaignApiProvider>);
   fireEvent.click(await screen.findByRole("button", { name: "직접 고치기" }));
   fireEvent.change(screen.getByLabelText("캡션"), { target: { value: "업계 최고 그래놀라" } });
   fireEvent.change(screen.getByLabelText(/해시태그/), { target: { value: "#광고 #그래놀라" } });
-  fireEvent.click(screen.getByRole("button", { name: "저장" }));
-  expect(await screen.findByText("고친 문구로 다시 검수를 요청해 주세요")).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "고치기 마침" }));
+  expect(screen.getByText("고친 문구로 다시 검수를 요청해 주세요")).toBeDefined();
   expect(approveButton().disabled).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "다시 검수 요청" }));
   expect(await screen.findByText("위험 표현 1개를 찾았어요")).toBeDefined();
@@ -73,21 +73,20 @@ test("검수 실패면 오류를 보여 주고 승인은 꺼진 채로 다시 �
   render(<CampaignApiProvider api={failing}><ReviewScreen campaignId="c" /></CampaignApiProvider>);
   expect(await screen.findByText("검수를 마치지 못했어요")).toBeDefined();
   expect(approveButton().disabled).toBe(true);
-  await expect(failing.approve("c")).rejects.toThrow(/검수를 마치지 못해/);
+  await expect(failing.approve("c")).rejects.toMatchObject({ code: "conflict" });
   fireEvent.click(screen.getByRole("button", { name: "다시 검수 요청" }));
   expect(await screen.findByText(/위험 표현 \d+개를 찾았어요/)).toBeDefined();
   expect(approveButton().disabled).toBe(false);
 });
 
-test("제안을 차례로 적용해도 앞서 고친 표현이 되돌아오지 않는다", async () => {
-  const api = createMockCampaignApi({ delay: 0 });
-  await api.saveDraft("c", "인스타그램", { caption: "업계 최고 상품! 무조건 만족해요.", hashtags: ["#광고"] });
-  let campaign = await api.requestReview("c");
-  const ids = campaign.findings.filter((finding) => finding.channel === "인스타그램").map((finding) => finding.id);
-  expect(ids).toHaveLength(2);
-  campaign = await api.applyFix("c", ids[0]);
-  expect(campaign.findings.find((finding) => finding.id === ids[1])?.suggestion).toBe("꼼꼼하게 만든 상품! 대부분 만족해요.");
-  campaign = await api.applyFix("c", ids[1]);
-  expect(campaign.drafts.인스타그램?.caption).toBe("꼼꼼하게 만든 상품! 대부분 만족해요.");
-  expect(campaign.findings.filter((finding) => ids.includes(finding.id)).every((finding) => finding.applied)).toBe(true);
+test("제안을 차례로 적용해도 앞서 고친 표현이 되돌아오지 않는다", () => {
+  const finding = (id: string, quote: string, replacement: string): RiskFinding => ({
+    id, channel: "인스타그램", rule: "R3", ruleLabel: "거짓·과장", quote, title: quote, reason: "", suggestion: replacement, replacement, applied: false,
+  });
+  const first = applyFinding({ caption: "업계 최고 상품! 무조건 만족해요.", hashtags: ["#광고"] }, finding("1", "업계 최고", "꼼꼼하게 만든"));
+  const second = first && applyFinding(first, finding("2", "무조건", "대부분"));
+  expect(second?.caption).toBe("꼼꼼하게 만든 상품! 대부분 만족해요.");
+  expect(second && applyFinding(second, finding("1", "업계 최고", "꼼꼼하게 만든"))).toBeNull();
+  const tag = applyFinding({ caption: "가을 신상", hashtags: ["#최고급"] }, finding("3", "최고급", "고급"));
+  expect(tag?.hashtags).toEqual(["#고급"]);
 });
