@@ -2,7 +2,6 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { type Campaign, type Mutation, type PublishingAdapter, PublishingError } from "./model";
-import { AuthRequirement } from "@/components/auth/auth";
 import { createHttpPublishingAdapter } from "./http-adapter";
 import { createMockAdapter, type Scenario } from "./mock-adapter";
 
@@ -30,13 +29,11 @@ export function PublishingProvider({ campaignId, children, adapter, demo = false
   const [scenario, setScenario] = useState<Scenario>("approved");
   const [http] = useState(() => (adapter || demo ? null : createHttpPublishingAdapter()));
   const source = adapter ?? http ?? undefined;
-  return <AuthRequirement required={source === http && http !== null}>
-    <DemoContext.Provider value={demo && !adapter ? { scenario, changeScenario: setScenario } : null}>
+  return <DemoContext.Provider value={demo && !adapter ? { scenario, changeScenario: setScenario } : null}>
       <SessionProvider key={`${campaignId}:${scenario}`} campaignId={campaignId} scenario={scenario} adapter={source}>
         {children}
       </SessionProvider>
-    </DemoContext.Provider>
-  </AuthRequirement>;
+  </DemoContext.Provider>;
 }
 
 function SessionProvider({ campaignId, scenario, adapter, children }: {

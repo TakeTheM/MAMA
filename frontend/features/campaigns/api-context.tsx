@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { AuthRequirement } from "@/components/auth/auth";
 import { createHttpCampaignApi } from "./http-api";
 import { type Campaign, type CampaignApi, ApiError } from "./model";
 
@@ -13,9 +12,9 @@ function defaultApi() {
 }
 
 const ApiContext = createContext<CampaignApi | null>(null);
-/** 다른 구현(테스트용 mock 등)을 넣을 때 쓴다. 이때는 로그인을 요구하지 않는다. */
+/** 다른 구현(테스트용 mock 등)을 넣을 때 쓴다. */
 export function CampaignApiProvider({ api, children }: { api: CampaignApi; children: ReactNode }) {
-  return <ApiContext.Provider value={api}><AuthRequirement required={false}>{children}</AuthRequirement></ApiContext.Provider>;
+  return <ApiContext.Provider value={api}>{children}</ApiContext.Provider>;
 }
 export function useCampaignApi(): CampaignApi {
   return useContext(ApiContext) ?? defaultApi();

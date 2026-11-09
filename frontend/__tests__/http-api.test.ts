@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { type CampaignOut, createHttpCampaignApi, toCampaign } from "../features/campaigns/http-api";
 import { createHttpPublishingAdapter } from "../features/publishing/http-adapter";
-import { apiFetch, auth, setAccessToken } from "../lib/api/http";
+import { apiFetch } from "../lib/api/http";
 
 // backend/app/schemas.py CampaignOut 모양
 function campaignOut(overrides: Partial<CampaignOut> = {}): CampaignOut {
@@ -25,28 +25,12 @@ function stub(handler: Handler) {
   calls = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => { calls.push({ url, init }); return handler(url, init); }));
 }
-beforeEach(() => setAccessToken("old-token"));
-afterEach(() => { vi.unstubAllGlobals(); setAccessToken(null); });
+afterEach(() => { vi.unstubAllGlobals(); });
 
-test("401이면 CSRF 헤더로 재발급하고 새 토큰으로 다시 요청한다", async () => {
-  stub((url, init) => {
-    if (url === "/api/v1/auth/refresh") return json(200, { access_token: "new-token", token_type: "bearer", expires_in: 900 });
-    const token = (init.headers as Record<string, string>).Authorization;
-    return token === "Bearer new-token" ? json(200, { ok: true }) : json(401, { detail: "인증 정보가 올바르지 않거나 만료되었습니다" });
-  });
-  await expect(apiFetch("/api/v1/campaigns")).resolves.toEqual({ ok: true });
-  const refresh = calls.find((call) => call.url === "/api/v1/auth/refresh");
-  expect((refresh?.init.headers as Record<string, string>)["X-CSRF-Protection"]).toBe("1");
-  expect(calls).toHaveLength(3);
-});
-
-test("로그인은 토큰을 메모리에 두고 이후 요청에 Bearer로 붙인다", async () => {
-  setAccessToken(null);
-  stub((url) => url.endsWith("/login") ? json(200, { access_token: "abc", token_type: "bearer", expires_in: 900 }) : json(200, { id: 1, email: "a@b.com", created_at: "2026-11-01T00:00:00Z" }));
-  await auth.login("a@b.com", "password-123");
-  await auth.me();
-  expect((calls[1].init.headers as Record<string, string>).Authorization).toBe("Bearer abc");
-  expect(calls[0].init.body).toBe(JSON.stringify({ email: "a@b.com", password: "password-123" }));
+test("인증 헤더 없이 부르고, 401이면 로그인 요구 안내로 바꾼다", async () => {
+  stub(() => json(401, { detail: "인증 정보가 올바르지 않거나 만료되었습니다" }));
+  await expect(createHttpCampaignApi().listCampaigns()).rejects.toMatchObject({ code: "forbidden", message: expect.stringContaining("로그인을 요구") });
+  expect((calls[0].init.headers as Record<string, string>).Authorization).toBeUndefined();
 });
 
 test("응답을 화면 모델로 옮긴다: 채널 이름, 경고, 승인 가능, 기록", () => {
@@ -103,7 +87,7 @@ test("게시 화면: 예약 요청 본문과 24시간 경고, 반려 후 다시 
 
 test("서버 오류(500)는 연결 실패와 구분해 상태 코드와 함께 알려 준다", async () => {
   stub(() => new Response("Internal Server Error", { status: 500 }));
-  await expect(apiFetch("/api/v1/auth/login", { method: "POST", body: {}, auth: false })).rejects.toMatchObject({ status: 500, message: expect.stringContaining("서버에서 오류가 났어요 (500)") });
+  await expect(apiFetch("/api/v1/campaigns", { method: "POST", body: {} })).rejects.toMatchObject({ status: 500, message: expect.stringContaining("서버에서 오류가 났어요 (500)") });
   vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("fetch failed"); }));
-  await expect(apiFetch("/api/health", { auth: false })).rejects.toMatchObject({ status: 0, message: expect.stringContaining("연결하지 못했어요") });
+  await expect(apiFetch("/api/health")).rejects.toMatchObject({ status: 0, message: expect.stringContaining("연결하지 못했어요") });
 });

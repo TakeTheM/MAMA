@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { AccountMenu, AuthGate } from "@/components/auth/auth";
 import type { ReactNode } from "react";
 import { Icon } from "./icon";
 import ui from "./ui.module.css";
@@ -14,11 +13,11 @@ const NAV: { key: NavKey; href: string; label: string; icon: "campaign" | "plus"
 
 /** 01~07 화면이 함께 쓰는 상단바·사이드바 틀 */
 export function AppShell({ active, children, notice }: { active: NavKey; children: ReactNode; notice?: ReactNode }) {
-  return <AuthGate><div className={ui.shell}>
+  return <div className={ui.shell}>
     <a className={ui.skip} href="#main">본문으로 건너뛰기</a>
     <header className={ui.topbar}>
       <Link href="/" className={ui.brand}><span>M</span>MAMA</Link>
-      <AccountMenu />
+      <div className={ui.seller}><span>우리 가게</span><b aria-label="셀러 계정">셀</b></div>
     </header>
     <div className={ui.workspace}>
       <nav className={ui.sidebar} aria-label="주 메뉴">
@@ -31,7 +30,7 @@ export function AppShell({ active, children, notice }: { active: NavKey; childre
         </div>
       </main>
     </div>
-  </div></AuthGate>;
+  </div>;
 }
 
 export function DemoNotice({ children }: { children?: ReactNode }) {
