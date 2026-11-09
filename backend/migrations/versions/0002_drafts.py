@@ -1,7 +1,6 @@
 """F-01 product input and channel drafts."""
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import mysql
 
 revision = "0002"
 down_revision = "0001"
@@ -17,12 +16,12 @@ def upgrade():
         ("reference_campaign_id", sa.BigInteger()),
     ):
         op.add_column("campaigns", sa.Column(name, datatype))
-    op.add_column("campaigns", sa.Column("channels", mysql.JSON(), nullable=True))
-    op.add_column("campaigns", sa.Column("drafts", mysql.JSON(), nullable=True))
+    op.add_column("campaigns", sa.Column("channels", sa.JSON(), nullable=True))
+    op.add_column("campaigns", sa.Column("drafts", sa.JSON(), nullable=True))
     op.add_column("campaigns", sa.Column("revision", sa.Integer(), nullable=False, server_default="0"))
-    op.execute("UPDATE campaigns SET channels = JSON_ARRAY(), drafts = JSON_OBJECT()")
-    op.alter_column("campaigns", "channels", existing_type=mysql.JSON(), nullable=False)
-    op.alter_column("campaigns", "drafts", existing_type=mysql.JSON(), nullable=False)
+    op.execute("UPDATE campaigns SET channels = '[]', drafts = '{}'")
+    op.alter_column("campaigns", "channels", existing_type=sa.JSON(), nullable=False)
+    op.alter_column("campaigns", "drafts", existing_type=sa.JSON(), nullable=False)
     op.alter_column("campaigns", "revision", existing_type=sa.Integer(), server_default=None)
     op.drop_constraint("ck_campaign_status", "campaigns", type_="check")
     op.create_check_constraint("ck_campaign_status", "campaigns", f"status IN ({OLD},'초안 생성됨')")
