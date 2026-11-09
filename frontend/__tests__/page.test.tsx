@@ -1,23 +1,34 @@
-import { render, screen } from "@testing-library/react";
-import { afterEach, expect, test, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, expect, test } from "vitest";
+import { CampaignApiProvider } from "../features/campaigns/api-context";
+import { CampaignListScreen, PerformanceListScreen } from "../features/campaigns/list/campaign-list";
+import { createMockCampaignApi } from "../features/campaigns/mock-api";
 
-import Home from "../app/page";
+afterEach(cleanup);
 
-afterEach(() => {
-  vi.unstubAllGlobals();
+test("캠페인 목록은 상태 요약과 다음 할 일을 보여 주고 상태로 거른다", async () => {
+  render(<CampaignApiProvider api={createMockCampaignApi({ delay: 0 })}><CampaignListScreen /></CampaignApiProvider>);
+  expect(screen.getByRole("heading", { name: "캠페인" })).toBeDefined();
+  const table = await screen.findByRole("table");
+  expect(within(table).getAllByRole("row")).toHaveLength(9);
+  expect(screen.getByText("경고 2개 확인하고 승인")).toBeDefined();
+  expect(screen.getByRole("link", { name: "제철 사과 선물세트" }).getAttribute("href")).toBe("/campaigns/d/publishing/schedule");
+  expect(screen.getByRole("link", { name: "수제 쿠키 박스" }).getAttribute("href")).toBe("/campaigns/f/performance");
+  fireEvent.click(screen.getByRole("button", { name: "조치 필요 1" }));
+  expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(2);
+  expect(screen.getByRole("button", { name: "조치 필요 1" }).getAttribute("aria-pressed")).toBe("true");
 });
 
-test("백엔드 상태가 ok이면 화면에 ok를 보여 준다", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ status: "ok" }),
-    }),
-  );
+test("목록을 못 불러오면 다시 시도할 수 있다", async () => {
+  render(<CampaignApiProvider api={createMockCampaignApi({ delay: 0, failNext: "load" })}><CampaignListScreen /></CampaignApiProvider>);
+  fireEvent.click(await screen.findByRole("button", { name: "다시 시도" }));
+  expect(await screen.findByRole("table")).toBeDefined();
+});
 
-  render(<Home />);
-
-  expect(screen.getByRole("heading", { name: "MAMA" })).toBeDefined();
-  expect(await screen.findByText("ok")).toBeDefined();
+test("성과 기록은 끝난 광고만 ROAS와 함께 보여 준다", async () => {
+  render(<CampaignApiProvider api={createMockCampaignApi({ delay: 0 })}><PerformanceListScreen /></CampaignApiProvider>);
+  const table = await screen.findByRole("table");
+  expect(within(table).getAllByRole("row")).toHaveLength(3);
+  expect(screen.getByText("312%")).toBeDefined();
+  expect(screen.getByText("성과 숫자 입력")).toBeDefined();
 });

@@ -1,0 +1,8 @@
+.fieldsets { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 24px; }
+.asideTitle { font-size: 16px !important; }
+.reference { border: 1px solid #f2b7b1; background: #fcefee; border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.reference strong { font-size: 15px; }
+.reference span { font-size: 13px; color: #3d3d3d; }
+.unit { position: relative; }
+.unit input { padding-right: 40px !important; }
+.unit > span { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: #6b6b6b; font-size: 15px; pointer-events: none; }

@@ -1,0 +1,22 @@
+.caption { font-size: 14px; font-weight: 600; color: #3d3d3d; }
+.copy { font-size: 16px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tags { font-size: 15px; line-height: 1.8; color: #3d3d3d; overflow-wrap: anywhere; }
+.copy mark, .tags mark { background: #fff0f0; color: #111; border-bottom: 2px solid #d61f26; padding: 1px 2px; }
+.tags .missing { border-bottom-style: dashed; }
+.copy sup, .tags sup { color: #111; font-weight: 700; font-size: 11px; margin-left: 2px; }
+.decision { display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; align-items: center; }
+.decision > span { margin-right: auto; }
+.finding { padding: 22px; gap: 14px; }
+.finding[data-applied="true"] { background: #fafafa; }
+.finding h3 { font-size: 15px; margin: 0; }
+.findingHead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.no { width: 26px; height: 26px; border-radius: 50%; background: #fff0f0; border: 1px solid #f6c9cb; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.rule { font-size: 13px; font-weight: 700; padding: 3px 8px; border-radius: 4px; background: #fff0f0; border: 1px solid #f6c9cb; }
+.done { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: #217344; font-weight: 600; }
+.reason { font-size: 14px; line-height: 1.6; color: #3d3d3d; }
+.source { font-size: 14px; display: inline-flex; align-items: flex-start; gap: 6px; text-decoration: underline !important; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.source svg { margin-top: 3px; }
+.suggestion { border-radius: 8px; background: #f7f7f7; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.suggestion span { font-size: 12px; font-weight: 700; color: #6b6b6b; letter-spacing: .04em; }
+.suggestion p { font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
+@media (max-width: 767px) { .decision > span { flex-basis: 100%; } .decision > button { flex: 1 1 0; } }
