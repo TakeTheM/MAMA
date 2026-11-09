@@ -100,3 +100,10 @@ test("게시 화면: 예약 요청 본문과 24시간 경고, 반려 후 다시 
   await expect(adapter.mutate("7", { action: "revise" })).rejects.toMatchObject({ code: "conflict" });
   expect(calls.at(-1)?.url).toBe("/api/v1/campaigns/7/request-revision");
 });
+
+test("서버 오류(500)는 연결 실패와 구분해 상태 코드와 함께 알려 준다", async () => {
+  stub(() => new Response("Internal Server Error", { status: 500 }));
+  await expect(apiFetch("/api/v1/auth/login", { method: "POST", body: {}, auth: false })).rejects.toMatchObject({ status: 500, message: expect.stringContaining("서버에서 오류가 났어요 (500)") });
+  vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("fetch failed"); }));
+  await expect(apiFetch("/api/health", { auth: false })).rejects.toMatchObject({ status: 0, message: expect.stringContaining("연결하지 못했어요") });
+});

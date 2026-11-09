@@ -55,7 +55,9 @@ async function toError(response: Response): Promise<HttpError> {
     }
     return new HttpError(response.status, kind, "입력한 값을 확인해 주세요.", fields);
   }
-  const message = typeof detail === "string" && detail ? detail : kind === "network" ? "서버에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요." : "요청을 처리하지 못했어요.";
+  // 연결은 됐지만 서버가 오류를 낸 경우(500 등)는 '연결 못 함'과 구분해서 알려 준다.
+  const fallback = response.status >= 500 ? `서버에서 오류가 났어요 (${response.status}). 잠시 뒤 다시 시도하거나 관리자에게 알려 주세요.` : "요청을 처리하지 못했어요.";
+  const message = typeof detail === "string" && detail ? detail : fallback;
   return new HttpError(response.status, kind, message);
 }
 
