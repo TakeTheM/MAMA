@@ -1,7 +1,8 @@
-export type CampaignStatus =
-  | "기획중" | "초안 생성됨" | "검수 대기" | "수정 요청" | "승인됨"
-  | "게시 예약됨" | "플랫폼 반려" | "집행중" | "일시정지" | "종료" | "성과 평가 완료" | "취소";
-export type Action = "schedule" | "publish" | "end" | "reject" | "revise";
+import type { CampaignStatus } from "@/lib/campaign-status";
+
+export type { CampaignStatus };
+export { formatTime } from "@/lib/campaign-status";
+export type Action = "schedule" | "publish" | "end" | "reject" | "revise" | "cancel";
 export type Schedule = { scheduledAt: string; amount: number; days: number };
 export type HistoryEntry = {
   from: CampaignStatus; to: CampaignStatus; at: string; actor: string; reason?: string;
@@ -12,11 +13,13 @@ export type Campaign = {
   initialBudget: { amount: number; days: number }; schedule?: Schedule;
   publishedAt?: string; endedAt?: string; rejectionReason?: string;
   history: HistoryEntry[]; allowedActions: Action[];
+  /** 채널별 승인 문구 (있으면 채널마다 보여 준다) */
+  copies?: { channel: string; caption: string; hashtags: string[] }[];
 };
 export type Mutation =
   | { action: "schedule"; schedule: Schedule }
   | { action: "reject"; reason: string }
-  | { action: "publish" | "end" | "revise" };
+  | { action: "publish" | "end" | "revise" | "cancel" };
 export type MutationResult = { campaign: Campaign; warning?: string };
 export interface PublishingAdapter {
   getCampaign(id: string): Promise<Campaign>;
@@ -30,13 +33,6 @@ export class PublishingError extends Error {
 }
 
 export const REVIEW_WARNING = "플랫폼 심사에 24시간 여유가 없습니다";
-
-export function formatTime(value?: string) {
-  if (!value) return "아직 기록되지 않음";
-  return new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul", dateStyle: "medium", timeStyle: "short",
-  }).format(new Date(value));
-}
 
 // datetime-local has no timezone. Always interpret its wall time as Seoul time.
 export function toSeoulInput(value: string) {

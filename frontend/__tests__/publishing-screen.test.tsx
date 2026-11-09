@@ -96,7 +96,7 @@ test("반려 입력은 항상 펼쳐지며 수정 요청에도 사유가 유지�
   fireEvent.change(reason, { target: { value: "상품 페이지 확인 필요" } });
   fireEvent.click(screen.getByRole("button", { name: "반려 기록" }));
   fireEvent.click(await screen.findByRole("button", { name: "다시 고치기" }));
-  expect(await screen.findByText(/수정 화면은 F-03/)).toBeDefined();
+  expect((await screen.findByRole("link", { name: "문구 고치러 가기" })).getAttribute("href")).toBe("/campaigns/demo/review");
   expect(screen.getAllByText("상품 페이지 확인 필요")).toHaveLength(2);
 });
 
@@ -142,5 +142,14 @@ test("현재 단계와 실제 승인 정보를 표시하며 범위 밖 취소 �
   expect(screen.getByRole("list", { name: "진행 단계" }).querySelector('[aria-current="step"]')?.textContent).toBe("04 게시 예약");
   expect(screen.getByRole("heading", { name: "승인된 문구" })).toBeDefined();
   expect(screen.getByText(/오후에 따뜻한 한 잔/)).toBeDefined();
+  expect(screen.queryByRole("button", { name: "캠페인 취소" })).toBeNull();
+});
+
+test("게시 예약됨에서는 확인 후 캠페인을 취소하고 이후 기록 버튼을 숨긴다", async () => {
+  render(<Harness mode="records" adapter={createMockAdapter({ scenario: "scheduled", delay: 0 })} />);
+  fireEvent.click(await screen.findByRole("button", { name: "캠페인 취소" }));
+  fireEvent.click(screen.getByRole("button", { name: "취소하기" }));
+  expect(await screen.findByText(/취소된 캠페인입니다/)).toBeDefined();
+  expect(screen.queryByRole("button", { name: "게시함" })).toBeNull();
   expect(screen.queryByRole("button", { name: "캠페인 취소" })).toBeNull();
 });

@@ -3,73 +3,26 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { type Campaign, type CampaignStatus, REVIEW_WARNING, formatTime, fromSeoulInput } from "./model";
+import { AppShell, DemoNotice } from "@/components/ui/app-shell";
+import { CampaignHeading as SharedHeading } from "@/components/ui/campaign-heading";
+import { Icon } from "@/components/ui/icon";
+import ui from "@/components/ui/ui.module.css";
+import { type Campaign, REVIEW_WARNING, formatTime, fromSeoulInput } from "./model";
 import { SCENARIOS, type Scenario } from "./mock-adapter";
 import { useDemoScenario, usePublishingSession } from "./publishing-session";
 import styles from "./publishing.module.css";
 
-function Icon({ name }: { name: "campaign" | "plus" | "chart" | "clock" | "check" | "info" }) {
-  return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    {name === "campaign" && <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9h10M7 13h10M7 17h6" /></>}
-    {name === "plus" && <path d="M12 5v14M5 12h14" />}
-    {name === "chart" && <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />}
-    {name === "clock" && <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>}
-    {name === "check" && <path d="M5 12l4 4L19 6" />}
-    {name === "info" && <><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16v.5" /></>}
-  </svg>;
-}
-
 export function PublishingShell({ children }: { children: ReactNode }) {
   const demo = useDemoScenario();
-  const { campaign, pending } = usePublishingSession();
-  return <div className={styles.shell}>
-    <a className={styles.skip} href="#publishing-main">본문으로 건너뛰기</a>
-    <header className={styles.topbar}>
-      <Link href="/" className={styles.brand}><span>M</span>MAMA</Link>
-      <div className={styles.seller}><span>우리 가게</span><b aria-label="셀러 계정">셀</b></div>
-    </header>
-    <div className={styles.workspace}>
-      <nav className={styles.sidebar} aria-label="주 메뉴">
-        <span className={styles.selected} aria-current="page"><Icon name="campaign" />캠페인</span>
-        <span aria-disabled="true"><Icon name="plus" />새 캠페인<small>준비 중</small></span>
-        <span aria-disabled="true"><Icon name="chart" />성과 기록<small>준비 중</small></span>
-      </nav>
-      <main id="publishing-main" className={styles.main} tabIndex={-1}>
-        <div className={styles.content}>
-          <div className={styles.demoBar}>
-            <p><strong>데모</strong> 새로고침하거나 시나리오를 바꾸면 기록이 초기화됩니다.</p>
-            {demo && <details><summary>데모 도구</summary><div className={styles.demoPanel}><label htmlFor="scenario">테스트 시나리오</label><select id="scenario" value={demo.scenario} disabled={pending} onChange={(event) => demo.changeScenario(event.target.value as Scenario)}>{SCENARIOS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div></details>}
-          </div>
-          {campaign && <CampaignHeading campaign={campaign} />}
-          {children}
-        </div>
-      </main>
-    </div>
-  </div>;
-}
-
-const steps = ["기획", "초안", "검수·승인", "게시 예약", "집행", "성과"];
-function activeStep(status: CampaignStatus, campaign: Campaign) {
-  switch (status) {
-    case "기획중": return 0;
-    case "초안 생성됨": return 1;
-    case "검수 대기": case "수정 요청": return 2;
-    case "승인됨": return 3;
-    case "게시 예약됨": case "플랫폼 반려": case "집행중": case "일시정지": return 4;
-    case "종료": case "성과 평가 완료": return 5;
-    case "취소": return campaign.schedule ? 3 : 0;
-  }
-}
-function CampaignHeading({ campaign }: { campaign: Campaign }) {
-  const step = activeStep(campaign.status, campaign);
-  return <section className={styles.campaignHeading} aria-label="캠페인 개요">
-    <p className={styles.breadcrumb}><Link href="/">홈</Link><span>›</span>캠페인<span>›</span>{campaign.name}</p>
-    <div className={styles.titleRow}><h1>{campaign.name}</h1><span className={styles.badge} data-state={campaign.status}><i />{campaign.status}</span></div>
-    <p className={styles.product}>{campaign.product} · {campaign.channels.join(", ")}</p>
-    <div className={styles.stepScroll} tabIndex={0} role="region" aria-label="캠페인 진행 단계">
-      <ol className={styles.steps} aria-label="진행 단계">{steps.map((label, index) => <li key={label} data-complete={index <= step} aria-current={index === step ? "step" : undefined}><span /><span>{String(index + 1).padStart(2, "0")} {label}</span></li>)}</ol>
-    </div>
-  </section>;
+  const { campaign, pending, mutate } = usePublishingSession();
+  const canceledFrom = campaign?.status === "취소" ? [...campaign.history].reverse().find((entry) => entry.to === "취소")?.from : undefined;
+  return <AppShell active="campaigns" notice={<DemoNotice>
+    {demo && <details><summary>데모 도구</summary><div className={ui.demoPanel}><label htmlFor="scenario">테스트 시나리오</label><select id="scenario" value={demo.scenario} disabled={pending} onChange={(event) => demo.changeScenario(event.target.value as Scenario)}>{SCENARIOS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div></details>}
+  </DemoNotice>}>
+    {campaign && <SharedHeading name={campaign.name} status={campaign.status} detail={`${campaign.product} · ${campaign.channels.join(", ")}`} canceledFrom={canceledFrom} pending={pending}
+      onCancel={campaign.allowedActions.includes("cancel") ? () => mutate({ action: "cancel" }) : undefined} />}
+    {children}
+  </AppShell>;
 }
 
 function SessionGate({ children }: { children: ReactNode }) {
@@ -140,7 +93,7 @@ function ReviewWarning() {
 }
 function ApprovalPanel({ campaign }: { campaign: Campaign }) {
   const approval = [...campaign.history].reverse().find((entry) => entry.to === "승인됨");
-  return <aside className={styles.stack} aria-label="승인 정보"><section className={styles.card}><h2>승인된 문구</h2><div className={styles.approvedCopy}><strong>{campaign.channels.join(", ")}</strong><p>{campaign.caption}</p><p className={styles.help}>{campaign.hashtags.join(" ")}</p></div></section>
+  return <aside className={styles.stack} aria-label="승인 정보"><section className={styles.card}><h2>승인된 문구</h2>{campaign.copies?.length ? campaign.copies.map((copy) => <div key={copy.channel} className={styles.approvedCopy}><strong>{copy.channel}</strong><p>{copy.caption}</p><p className={styles.help}>{copy.hashtags.join(" ")}</p></div>) : <div className={styles.approvedCopy}><strong>{campaign.channels.join(", ")}</strong><p>{campaign.caption}</p><p className={styles.help}>{campaign.hashtags.join(" ")}</p></div>}</section>
     {approval && <div className={styles.approval}><Icon name="check" /><span>{actorName(approval.actor)} · {formatTime(approval.at)} 승인</span></div>}
   </aside>;
 }
@@ -166,8 +119,8 @@ function RecordsContent() {
       {can("publish") && <div className={styles.dashed}><Icon name="info" /><p>‘집행중’이 되면 종료 버튼이 나와요. 플랫폼에서 광고가 끝난 뒤 눌러서 기록해 주세요.</p></div>}
       {can("end") && <section className={`${styles.card} ${styles.featured}`}><h3>광고가 끝났어요</h3><p>플랫폼에서 광고를 종료한 뒤 기록해 주세요. 기간이 지나도 자동 종료되지 않습니다.</p><div className={styles.alignRight}><button className={styles.primary} disabled={pending} onClick={() => void mutate({ action: "end" })}>종료 기록</button></div></section>}
       {campaign.rejectionReason && <section className={styles.card}><h3>플랫폼 반려 사유</h3><p className={styles.reason}>{campaign.rejectionReason}</p>{can("revise") && <div className={styles.alignRight}><button className={styles.primary} disabled={pending} onClick={() => void mutate({ action: "revise" })}>다시 고치기</button></div>}</section>}
-      {campaign.status === "수정 요청" && <p className={styles.dashed}>반려 사유를 확인하고 문구와 상품 정보를 수정해 주세요. 수정 화면은 F-03에서 연결할 예정입니다.</p>}
-      {campaign.status === "종료" && <p className={styles.approval}><Icon name="check" />광고 집행 기록을 마쳤습니다. 성과 요약은 F-05에서 이어질 예정입니다.</p>}
+      {campaign.status === "수정 요청" && <p className={styles.dashed}>반려 사유를 확인하고 문구와 상품 정보를 수정해 주세요. <Link className={styles.textLink} href={`/campaigns/${encodeURIComponent(campaign.id)}/review`}>문구 고치러 가기</Link></p>}
+      {campaign.status === "종료" && <p className={styles.approval}><Icon name="check" />광고 집행 기록을 마쳤습니다. <Link className={styles.textLink} href={`/campaigns/${encodeURIComponent(campaign.id)}/performance`}>성과 숫자 입력하기</Link></p>}
       {campaign.status === "취소" && <p className={styles.dashed}>취소된 캠페인입니다. 저장된 기록만 확인할 수 있습니다.</p>}
       {!campaign.allowedActions.length && !["수정 요청", "종료", "취소"].includes(campaign.status) && <p className={styles.dashed}>현재 단계에서는 게시·집행 기록을 변경할 수 없습니다.</p>}
       <Feedback />

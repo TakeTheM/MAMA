@@ -12,7 +12,7 @@ export const SCENARIOS = [
 ] as const;
 export type Scenario = typeof SCENARIOS[number][0];
 const allowed: Partial<Record<CampaignStatus, Action[]>> = {
-  승인됨: ["schedule"], "게시 예약됨": ["publish", "reject"],
+  승인됨: ["schedule"], "게시 예약됨": ["publish", "reject", "cancel"],
   집행중: ["end"], "플랫폼 반려": ["revise"],
 };
 const HOUR = 60 * 60 * 1000;
@@ -21,6 +21,8 @@ const HOUR = 60 * 60 * 1000;
 // Each instance is an isolated, in-memory demo session; no browser storage is used.
 export function createMockAdapter(options: {
   scenario?: Scenario; actorId?: string; now?: () => Date; delay?: number;
+  /** 데모 저장소의 캠페인으로 시작할 때 (scenario 대신) */
+  initial?: Campaign; onChange?: (campaign: Campaign) => void;
 } = {}): PublishingAdapter {
   const scenario = options.scenario ?? "approved";
   const actor = options.actorId ?? "seller-demo";
@@ -62,8 +64,8 @@ export function createMockAdapter(options: {
     return campaign;
   }
   function requireCampaign(id: string) {
-    if (id !== "demo" || scenario === "missing") throw new PublishingError("not_found", "캠페인을 찾을 수 없습니다.");
-    record ??= seed();
+    if (id !== (options.initial?.id ?? "demo") || scenario === "missing") throw new PublishingError("not_found", "캠페인을 찾을 수 없습니다.");
+    record ??= options.initial ? structuredClone(options.initial) : seed();
     if (scenario === "forbidden" || record.ownerId !== actor) throw new PublishingError("forbidden", "이 캠페인을 조회하거나 변경할 권한이 없습니다.");
     return record;
   }
@@ -103,9 +105,11 @@ export function createMockAdapter(options: {
           if (!command.reason.trim()) throw new PublishingError("validation", "반려 사유를 입력해 주세요.", "reason");
           next.status = "플랫폼 반려"; next.rejectionReason = command.reason.trim(); break;
         case "revise": next.status = "수정 요청"; break;
+        case "cancel": next.status = "취소"; break;
       }
       next.history.push({ from: current.status, to: next.status, at, actor, ...(command.action === "reject" ? { reason: next.rejectionReason } : {}) });
       record = next;
+      options.onChange?.(structuredClone(next));
       return { campaign: snapshot(next), warning };
     },
   };

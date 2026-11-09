@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { type Campaign, type Mutation, type PublishingAdapter, PublishingError } from "./model";
+import { demoStoreAdapter } from "./demo-bridge";
 import { createMockAdapter, type Scenario } from "./mock-adapter";
 
 type Session = {
@@ -22,8 +23,11 @@ export function PublishingProvider({ campaignId, children, adapter }: {
   campaignId: string; children: ReactNode; adapter?: PublishingAdapter;
 }) {
   const [scenario, setScenario] = useState<Scenario>("approved");
-  return <DemoContext.Provider value={adapter ? null : { scenario, changeScenario: setScenario }}>
-    <SessionProvider key={`${campaignId}:${scenario}`} campaignId={campaignId} scenario={scenario} adapter={adapter}>
+  // 목록에 있는 데모 캠페인이면 같은 저장소를 쓰고, "demo"는 시나리오 도구로 상태를 바꿔 볼 수 있다.
+  const [stored] = useState(() => (adapter ? null : demoStoreAdapter(campaignId)));
+  const source = adapter ?? stored ?? undefined;
+  return <DemoContext.Provider value={source ? null : { scenario, changeScenario: setScenario }}>
+    <SessionProvider key={`${campaignId}:${scenario}`} campaignId={campaignId} scenario={scenario} adapter={source}>
       {children}
     </SessionProvider>
   </DemoContext.Provider>;
