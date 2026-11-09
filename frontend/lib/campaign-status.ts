@@ -30,6 +30,11 @@ export function activeStep(status: CampaignStatus, canceledFrom?: CampaignStatus
   }
 }
 
+/** 취소된 캠페인이 어느 상태에서 취소됐는지 (진행 단계 표시용) */
+export function canceledFrom(status: CampaignStatus, history: { from: CampaignStatus; to: CampaignStatus }[]): CampaignStatus | undefined {
+  return status === "취소" ? [...history].reverse().find((entry) => entry.to === "취소")?.from : undefined;
+}
+
 /** 캠페인 상태별로 사장님이 열어야 할 화면 */
 export function campaignPath(id: string, status: CampaignStatus): string {
   const base = `/campaigns/${encodeURIComponent(id)}`;

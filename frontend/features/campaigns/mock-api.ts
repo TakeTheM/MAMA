@@ -203,7 +203,8 @@ export function createMockCampaignApi(options: MockOptions = {}): CampaignApi & 
   const pause = () => new Promise<void>((resolve) => setTimeout(resolve, options.delay ?? 300));
 
   function allowedFor(campaign: Campaign): CampaignAction[] {
-    return [...(ALLOWED[campaign.status] ?? [])];
+    // 요약(L3)이 없으면 평가 완료를 허용하지 않는다 (US-05).
+    return (ALLOWED[campaign.status] ?? []).filter((action) => action !== "complete-evaluation" || Boolean(campaign.performance?.summary));
   }
   function snapshot(campaign: Campaign): Campaign {
     return structuredClone({ ...campaign, allowedActions: allowedFor(campaign) });

@@ -81,7 +81,7 @@ function PerformanceBody({ campaign, session }: { campaign: Campaign; session: S
 
       {campaign.status === "종료" ? <div className={ui.actionsSplit}>
         <span className={ui.help}>평가를 완료하면 이 문구와 성과가 다음 캠페인 초안에 반영돼요.</span>
-        <button type="button" className={ui.primary} disabled={session.pending || !campaign.allowedActions.includes("complete-evaluation") || !p?.summary} onClick={() => void session.run((api) => api.completeEvaluation(campaign.id), "평가를 완료했어요. 다음 초안에 반영돼요.")}>평가 완료</button>
+        <button type="button" className={ui.primary} disabled={session.pending || !campaign.allowedActions.includes("complete-evaluation")} onClick={() => void session.run((api) => api.completeEvaluation(campaign.id), "평가를 완료했어요. 다음 초안에 반영돼요.")}>평가 완료</button>
       </div> : <div className={ui.approval}><Icon name="check" /><span>평가를 마친 캠페인이에요. 다음 캠페인 초안을 만들 때 참고해요. <Link className={ui.textLink} href="/campaigns/new">새 캠페인 만들기</Link></span></div>}
     </section>
   </div>;

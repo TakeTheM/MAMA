@@ -6,6 +6,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AppShell, DemoNotice } from "@/components/ui/app-shell";
 import { CampaignHeading as SharedHeading } from "@/components/ui/campaign-heading";
 import { Icon } from "@/components/ui/icon";
+import { LoadGate } from "@/components/ui/load-gate";
+import { canceledFrom, money } from "@/lib/campaign-status";
 import ui from "@/components/ui/ui.module.css";
 import { type Campaign, REVIEW_WARNING, formatTime, fromSeoulInput } from "./model";
 import { SCENARIOS, type Scenario } from "./mock-adapter";
@@ -15,11 +17,10 @@ import styles from "./publishing.module.css";
 export function PublishingShell({ children }: { children: ReactNode }) {
   const demo = useDemoScenario();
   const { campaign, pending, mutate } = usePublishingSession();
-  const canceledFrom = campaign?.status === "취소" ? [...campaign.history].reverse().find((entry) => entry.to === "취소")?.from : undefined;
   return <AppShell active="campaigns" notice={<DemoNotice>
     {demo && <details><summary>데모 도구</summary><div className={ui.demoPanel}><label htmlFor="scenario">테스트 시나리오</label><select id="scenario" value={demo.scenario} disabled={pending} onChange={(event) => demo.changeScenario(event.target.value as Scenario)}>{SCENARIOS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div></details>}
   </DemoNotice>}>
-    {campaign && <SharedHeading name={campaign.name} status={campaign.status} detail={`${campaign.product} · ${campaign.channels.join(", ")}`} canceledFrom={canceledFrom} pending={pending}
+    {campaign && <SharedHeading name={campaign.name} status={campaign.status} detail={`${campaign.product} · ${campaign.channels.join(", ")}`} canceledFrom={canceledFrom(campaign.status, campaign.history)} pending={pending}
       onCancel={campaign.allowedActions.includes("cancel") ? () => mutate({ action: "cancel" }) : undefined} />}
     {children}
   </AppShell>;
@@ -27,13 +28,10 @@ export function PublishingShell({ children }: { children: ReactNode }) {
 
 function SessionGate({ children }: { children: ReactNode }) {
   const { campaign, loadError, reload } = usePublishingSession();
-  if (loadError) return <section className={styles.empty} role="alert"><h1>{loadError.code === "not_found" ? "캠페인이 없습니다" : loadError.code === "forbidden" ? "접근 권한이 없습니다" : "잠시 연결이 어려워요"}</h1><p>{loadError.message}</p>{loadError.code === "network" && <button className={styles.primary} onClick={reload}>다시 시도</button>}</section>;
-  if (!campaign) return <section className={styles.empty} role="status"><h1>캠페인을 불러오는 중입니다</h1><p>게시 계획과 기록을 준비하고 있어요.</p></section>;
-  return children;
+  return <LoadGate data={campaign} loadError={loadError} reload={reload}>{() => children}</LoadGate>;
 }
 function recordsPath(id: string) { return `/campaigns/${encodeURIComponent(id)}/publishing`; }
 function schedulePath(id: string) { return `${recordsPath(id)}/schedule`; }
-const money = (amount: number) => `${amount.toLocaleString("ko-KR")}원`;
 const MANUAL_NOTICE = "MAMA는 플랫폼에 직접 올리거나 광고비를 쓰지 않아요. 예약 후 직접 올리고 ‘게시함’을 눌러 기록해 주세요.";
 
 export function ScheduleScreen() {

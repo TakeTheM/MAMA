@@ -1,30 +1,23 @@
 "use client";
 
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { CampaignHeading } from "@/components/ui/campaign-heading";
+import { LoadGate as CommonLoadGate } from "@/components/ui/load-gate";
+import { canceledFrom } from "@/lib/campaign-status";
 import ui from "@/components/ui/ui.module.css";
 import { type Campaign, ApiError } from "./model";
 
-/** 불러오는 중·오류 화면. 캠페인이 준비되면 children을 그린다. */
+/** 캠페인 화면용 불러오기 게이트 (공통 LoadGate에 캠페인 타입을 정해 둠) */
 export function LoadGate({ campaign, loadError, reload, children }: {
   campaign: Campaign | null; loadError: ApiError | null; reload: () => void; children: (campaign: Campaign) => ReactNode;
 }) {
-  if (loadError) {
-    const title = loadError.code === "not_found" ? "캠페인이 없습니다" : loadError.code === "forbidden" ? "접근 권한이 없습니다" : "잠시 연결이 어려워요";
-    return <section className={ui.empty} role="alert"><h1>{title}</h1><p>{loadError.message}</p>
-      {loadError.code === "network" ? <button className={ui.primary} onClick={reload}>다시 시도</button> : <Link className={ui.secondary} href="/">캠페인 목록으로</Link>}
-    </section>;
-  }
-  if (!campaign) return <section className={ui.empty} role="status"><h1>캠페인을 불러오는 중입니다</h1><p>잠시만 기다려 주세요.</p></section>;
-  return children(campaign);
+  return <CommonLoadGate data={campaign} loadError={loadError} reload={reload}>{children}</CommonLoadGate>;
 }
 
 /** 상태 헤더 + 취소. 취소 가능 여부는 백엔드 응답(allowedActions)을 따른다. */
 export function Heading({ campaign, pending, onCancel }: { campaign: Campaign; pending: boolean; onCancel: () => Promise<unknown> }) {
-  const canceledFrom = campaign.status === "취소" ? [...campaign.history].reverse().find((entry) => entry.to === "취소")?.from : undefined;
   return <CampaignHeading
-    name={campaign.name} status={campaign.status} pending={pending} canceledFrom={canceledFrom}
+    name={campaign.name} status={campaign.status} pending={pending} canceledFrom={canceledFrom(campaign.status, campaign.history)}
     detail={`${campaign.plan.productName} · ${campaign.plan.channels.join(", ")}`}
     onCancel={campaign.allowedActions.includes("cancel") ? async () => Boolean(await onCancel()) : undefined}
   />;

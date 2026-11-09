@@ -22,7 +22,7 @@ const HOUR = 60 * 60 * 1000;
 export function createMockAdapter(options: {
   scenario?: Scenario; actorId?: string; now?: () => Date; delay?: number;
   /** 데모 저장소의 캠페인으로 시작할 때 (scenario 대신) */
-  initial?: Campaign; onChange?: (campaign: Campaign) => void;
+  initial?: Campaign;
 } = {}): PublishingAdapter {
   const scenario = options.scenario ?? "approved";
   const actor = options.actorId ?? "seller-demo";
@@ -109,7 +109,6 @@ export function createMockAdapter(options: {
       }
       next.history.push({ from: current.status, to: next.status, at, actor, ...(command.action === "reject" ? { reason: next.rejectionReason } : {}) });
       record = next;
-      options.onChange?.(structuredClone(next));
       return { campaign: snapshot(next), warning };
     },
   };

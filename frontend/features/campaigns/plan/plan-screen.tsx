@@ -48,6 +48,8 @@ function PlanForm({ campaignId, initial }: { campaignId: string | null; initial:
   const [error, setError] = useState<ApiError | null>(null);
   const [notice, setNotice] = useState("");
   const [reference, setReference] = useState<CampaignSummary | null>(null);
+  // 첫 임시 저장으로 만든 캠페인 id. 다음 저장·초안 만들기는 이 캠페인에 한다(중복 생성 방지).
+  const [savedId, setSavedId] = useState<string | null>(campaignId);
 
   useEffect(() => {
     let active = true;
@@ -64,10 +66,12 @@ function PlanForm({ campaignId, initial }: { campaignId: string | null; initial:
     if (pending) return;
     setPending(kind); setError(null); setNotice("");
     try {
-      const saved: Campaign = kind === "save" ? await api.savePlan(campaignId, values) : await api.generateDraft(campaignId, values);
+      const saved: Campaign = kind === "save" ? await api.savePlan(savedId, values) : await api.generateDraft(savedId, values);
+      setSavedId(saved.id);
       if (kind === "draft") { router.push(`/campaigns/${encodeURIComponent(saved.id)}/draft`); return; }
       setNotice("임시 저장했어요. 목록에서 이어서 쓸 수 있어요.");
-      if (!campaignId) router.replace(`/campaigns/${encodeURIComponent(saved.id)}/plan`);
+      // 새 캠페인이면 주소를 바꾸는 동안 버튼을 꺼 둔다.
+      if (!savedId) { router.replace(`/campaigns/${encodeURIComponent(saved.id)}/plan`); return; }
       setPending(null);
     } catch (failure) {
       setError(asApiError(failure));
