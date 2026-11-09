@@ -177,6 +177,72 @@ class RejectInput(InputModel):
         return value
 
 
+class ReviewRequest(InputModel):
+    drafts: dict[Channel, ChannelDraft] | None = None
+
+
+Rule = Literal["R1", "R3", "R4", "R5"]
+ReviewChannel = Channel | Literal["legacy"]
+
+
+class ReviewFinding(InputModel):
+    channel: ReviewChannel
+    start: int = Field(strict=True, ge=0)
+    end: int = Field(strict=True, gt=0)
+    quote: Content
+    rule: Rule
+    reason: Content
+    evidence_url: str | None = None
+    suggestion: Content
+
+    @field_validator("reason", "suggestion")
+    @classmethod
+    def reject_blank(cls, value):
+        if not value.strip():
+            raise ValueError("공백만 입력할 수 없습니다")
+        return value
+
+
+class ReviewResult(InputModel):
+    findings: list[ReviewFinding] = Field(max_length=200)
+
+
+class ReviewOut(InputModel):
+    status: Literal["pending", "failed", "passed", "changes_requested"]
+    findings: list[ReviewFinding]
+
+
+Metric = Annotated[int, Field(strict=True, ge=0, le=9_223_372_036_854_775_807)]
+
+
+class PerformanceInput(InputModel):
+    impressions: Metric
+    clicks: Metric
+    conversions: Metric
+    ad_spend: Metric
+    revenue: Metric
+
+
+class PerformanceSummary(InputModel):
+    summary: Content
+    suggestion: Content
+
+    @field_validator("summary", "suggestion")
+    @classmethod
+    def reject_blank(cls, value):
+        if not value.strip():
+            raise ValueError("공백만 입력할 수 없습니다")
+        return value
+
+
+class PerformanceOut(PerformanceInput):
+    roas: float | None
+    status: Literal["pending", "failed", "ready", "completed"]
+    summary: str | None = None
+    suggestion: str | None = None
+    evaluated_at: datetime | None = None
+
+
 class CampaignOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -205,6 +271,7 @@ class CampaignOut(BaseModel):
     allowed_actions: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     rejection_reason: str | None = None
+    review: ReviewOut | None = None
 
 
 class CampaignList(BaseModel):

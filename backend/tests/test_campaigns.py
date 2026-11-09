@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app import campaign_service
 from app.database import utcnow
+from app.llm import LLMClient
 from app.models import Campaign, CampaignStatusHistory
 from conftest import register_login
 from main import app
@@ -16,6 +17,15 @@ from main import app
 pytestmark = pytest.mark.mysql
 BASE = "/api/v1/campaigns"
 CAMPAIGN = {"content": "오늘 구운 빵 🍞 #광고", "initial_budget_amount": 100000, "initial_budget_days": 7}
+
+
+@pytest.fixture(autouse=True)
+def pass_review(monkeypatch):
+    def complete(self, task, payload, output_type):
+        assert task == "review"
+        return output_type(findings=[])
+
+    monkeypatch.setattr(LLMClient, "complete", complete)
 
 
 def create(client):
@@ -27,6 +37,7 @@ def create(client):
 
 def approved(client):
     campaign_id = create(client)
+    assert client.post(f"{BASE}/{campaign_id}/request-review").status_code == 200
     assert client.post(f"{BASE}/{campaign_id}/approve").status_code == 200
     return campaign_id
 
@@ -41,8 +52,9 @@ def scheduled(client):
 def test_full_normal_flow(seller):
     campaign_id = create(seller)
     path = f"{BASE}/{campaign_id}"
-    assert seller.get(path).json()["allowed_actions"] == ["edit", "approve"]
+    assert seller.get(path).json()["allowed_actions"] == ["edit", "cancel", "request-review"]
     assert seller.patch(path, json={"content": "새로운 광고 문자열"}).status_code == 200
+    assert seller.post(path + "/request-review").status_code == 200
     assert seller.post(path + "/approve").json()["status"] == "승인됨"
     result = seller.post(path + "/schedule", json={"scheduled_at": (utcnow() + timedelta(days=2)).isoformat()})
     assert result.status_code == 200
@@ -54,10 +66,10 @@ def test_full_normal_flow(seller):
     assert posted.json()["published_at"].endswith("Z")
     ended = seller.post(path + "/end")
     assert ended.json()["status"] == "종료"
-    assert ended.json()["allowed_actions"] == []
+    assert ended.json()["allowed_actions"] == ["performance"]
     assert seller.get(path).json()["status"] == "종료"
     history = seller.get(path + "/history").json()
-    assert [row["next_status"] for row in history] == ["기획중", "승인됨", "게시 예약됨", "집행중", "종료"]
+    assert [row["next_status"] for row in history] == ["기획중", "검수 대기", "승인됨", "게시 예약됨", "집행중", "종료"]
     assert history[0]["previous_status"] is None
     assert all(row["changed_by"] == ended.json()["owner_id"] for row in history)
     assert history == sorted(history, key=lambda row: (row["recorded_at"], row["id"]))
@@ -76,6 +88,7 @@ def test_rejection_revision_and_reservation_history(seller):
     assert revision["rejection_reason"] == "플랫폼에서 표현 수정을 요청했습니다"
     assert seller.get(path).json()["rejection_reason"] == revision["rejection_reason"]
     assert seller.patch(path, json={"content": "수정한 광고"}).status_code == 200
+    assert seller.post(path + "/request-review").status_code == 200
     assert seller.post(path + "/approve").status_code == 200
     assert seller.post(path + "/schedule", json={"scheduled_at": (utcnow() + timedelta(days=3)).isoformat()}).status_code == 200
     history = seller.get(path + "/history").json()
@@ -147,7 +160,7 @@ def test_reject_blank_reason_and_skip_transitions(seller):
     for action in ["end", "approve", "request-revision"]:
         assert seller.post(path + "/" + action).status_code == 409
     assert seller.get(path).json()["status"] == "게시 예약됨"
-    assert len(seller.get(path + "/history").json()) == 3
+    assert len(seller.get(path + "/history").json()) == 4
     planning = create(seller)
     assert seller.post(f"{BASE}/{planning}/publish").status_code == 409
 
@@ -209,7 +222,7 @@ def test_history_failure_rolls_back_campaign_state(seller, mysql_engine):
     event.listen(CampaignStatusHistory, "before_insert", fail_history)
     try:
         with TestClient(app, raise_server_exceptions=False) as client:
-            result = client.post(f"{BASE}/{campaign_id}/approve", headers=dict(seller.headers))
+            result = client.post(f"{BASE}/{campaign_id}/request-review", headers=dict(seller.headers))
             assert result.status_code == 500
     finally:
         event.remove(CampaignStatusHistory, "before_insert", fail_history)
@@ -259,5 +272,5 @@ def test_concurrent_publish_and_reject_only_one_transition(seller, api, mysql_en
         campaign = db.get(Campaign, campaign_id)
         assert campaign.status in ["집행중", "플랫폼 반려"]
         records = db.scalars(select(CampaignStatusHistory).where(CampaignStatusHistory.campaign_id == campaign_id)).all()
-        assert len(records) == 4
+        assert len(records) == 5
         assert sum(row.previous_status == "게시 예약됨" for row in records) == 1

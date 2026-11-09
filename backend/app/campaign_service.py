@@ -9,18 +9,22 @@ from app.models import Campaign, CampaignStatus as S, CampaignStatusHistory
 from app.schemas import CampaignCreate, CampaignOut, CampaignPatch, EndInput, PublishInput, RejectInput, ScheduleInput
 
 ACTIONS = {
-    S.PLANNING: ["edit", "approve"],
-    S.DRAFTED: ["edit"],
+    S.PLANNING: ["edit", "cancel"],
+    S.DRAFTED: ["edit", "request-review", "cancel"],
+    S.REVIEW_PENDING: [],
     S.APPROVED: ["schedule"],
-    S.SCHEDULED: ["publish", "reject"],
+    S.SCHEDULED: ["publish", "reject", "cancel"],
     S.RUNNING: ["end"],
-    S.ENDED: [],
+    S.ENDED: ["performance"],
     S.REJECTED: ["request-revision"],
-    S.REVISION_REQUESTED: ["edit", "approve"],
+    S.REVISION_REQUESTED: ["edit", "request-review"],
+    S.CANCELED: [],
+    S.EVALUATED: [],
 }
 TARGETS = {
     "approve": S.APPROVED, "schedule": S.SCHEDULED, "publish": S.RUNNING,
     "end": S.ENDED, "reject": S.REJECTED, "request-revision": S.REVISION_REQUESTED,
+    "cancel": S.CANCELED,
 }
 REVIEW_WARNING = "플랫폼 심사에 24시간 여유가 없습니다"
 
@@ -63,9 +67,23 @@ def latest_rejection(db: Session, campaign: Campaign) -> str | None:
     return history.snapshot.get("rejection_reason") if history else None
 
 
+def allowed_actions(campaign: Campaign) -> list[str]:
+    actions = ACTIONS[S(campaign.status)].copy()
+    if campaign.status == S.PLANNING and not campaign.channels and campaign.content.strip():
+        actions.append("request-review")
+    if campaign.status == S.REVIEW_PENDING:
+        if campaign.review["status"] == "passed":
+            actions.append("approve")
+        else:
+            actions.append("request-review")
+    if campaign.status == S.ENDED and campaign.performance and campaign.performance["status"] == "ready":
+        actions.append("complete-performance")
+    return actions
+
+
 def present(db: Session, campaign: Campaign, warnings: list[str] | None = None) -> CampaignOut:
     result = CampaignOut.model_validate(campaign)
-    result.allowed_actions = ACTIONS[S(campaign.status)].copy()
+    result.allowed_actions = allowed_actions(campaign)
     result.warnings = warnings or []
     result.rejection_reason = latest_rejection(db, campaign)
     return result
@@ -88,14 +106,32 @@ def edit_campaign(db: Session, campaign_id: int, owner_id: int, data: CampaignPa
     campaign = owned_campaign(db, campaign_id, owner_id, lock=True)
     if "edit" not in ACTIONS[S(campaign.status)]:
         raise HTTPException(409, "현재 상태에서는 광고를 수정할 수 없습니다")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    changes = data.model_dump(exclude_unset=True)
+    for key, value in changes.items():
         if key == "drafts" and value is None:
             raise HTTPException(422, "drafts는 null일 수 없습니다")
         setattr(campaign, key, value)
+    if campaign.channels and campaign.channels[0] in campaign.drafts:
+        first = campaign.channels[0]
+        if "content" in changes and "drafts" not in changes:
+            campaign.drafts = {**campaign.drafts, first: {**campaign.drafts[first], "caption": campaign.content}}
+        campaign.content = campaign.drafts[first]["caption"]
     campaign.revision += 1
     campaign.updated_at = utcnow()
     db.commit()
     return present(db, campaign)
+
+
+def record_transition(db: Session, campaign: Campaign, target: S, now, *, snapshot=None):
+    previous = campaign.status
+    campaign.status = target
+    campaign.revision += 1
+    campaign.updated_at = now
+    db.add(CampaignStatusHistory(
+        campaign_id=campaign.id, previous_status=previous, next_status=target,
+        changed_by=campaign.owner_id, recorded_at=now,
+        snapshot=history_snapshot(campaign) if snapshot is None else snapshot,
+    ))
 
 
 def transition(
@@ -103,7 +139,9 @@ def transition(
     data: ScheduleInput | PublishInput | EndInput | RejectInput | None = None,
 ) -> CampaignOut:
     campaign = owned_campaign(db, campaign_id, owner_id, lock=True)
-    if action not in ACTIONS[S(campaign.status)]:
+    if action == "cancel" and campaign.status in (S.RUNNING, S.ENDED, S.EVALUATED):
+        raise HTTPException(409, "이미 올린 광고는 플랫폼에서 직접 중지해 주세요")
+    if action not in allowed_actions(campaign):
         raise HTTPException(409, "현재 상태에서는 요청한 작업을 할 수 없습니다")
     now = utcnow()
     reason = None
@@ -138,13 +176,6 @@ def transition(
         campaign.scheduled_at = None
         campaign.budget_amount = None
         campaign.budget_days = None
-    previous = campaign.status
-    campaign.status = TARGETS[action]
-    campaign.revision += 1
-    campaign.updated_at = now
-    db.add(CampaignStatusHistory(
-        campaign_id=campaign.id, previous_status=previous, next_status=campaign.status,
-        changed_by=owner_id, recorded_at=now, snapshot=snapshot,
-    ))
+    record_transition(db, campaign, TARGETS[action], now, snapshot=snapshot)
     db.commit()
     return present(db, campaign, warnings)

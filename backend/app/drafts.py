@@ -1,16 +1,12 @@
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.campaign_service import history_snapshot, owned_campaign, present
+from app.campaign_service import owned_campaign, present, record_transition
 from app.database import utcnow
 from app.llm import LLMClient
-from app.models import CampaignStatus as S, CampaignStatusHistory
+from app.models import CampaignStatus as S
+from app.performance import feedback_context
 from app.schemas import DraftResult
-
-
-def feedback_context(db: Session, owner_id: int) -> tuple[int | None, dict | None]:
-    # F-05 adds the evaluated-performance lookup when that data becomes available.
-    return None, None
 
 
 def generate(db: Session, campaign_id: int, owner_id: int, llm: LLMClient):
@@ -42,12 +38,6 @@ def generate(db: Session, campaign_id: int, owner_id: int, llm: LLMClient):
     campaign.drafts = result.model_dump()["drafts"]
     campaign.content = result.drafts[channels[0]].caption
     campaign.reference_campaign_id = reference_id
-    campaign.status = S.DRAFTED
-    campaign.revision += 1
-    campaign.updated_at = utcnow()
-    db.add(CampaignStatusHistory(
-        campaign_id=campaign.id, previous_status=S.PLANNING, next_status=S.DRAFTED,
-        changed_by=owner_id, recorded_at=campaign.updated_at, snapshot=history_snapshot(campaign),
-    ))
+    record_transition(db, campaign, S.DRAFTED, utcnow())
     db.commit()
     return present(db, campaign)
