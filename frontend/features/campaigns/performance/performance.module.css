@@ -1,0 +1,25 @@
+.form { gap: 18px; }
+.form h2 { margin-bottom: 4px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.grid > [data-wide="true"] { grid-column: span 2; }
+.unit { position: relative; }
+.unit input { text-align: right; }
+.unit:has(span) input { padding-right: 36px !important; }
+.unit > span { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: #6b6b6b; pointer-events: none; }
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.roas { grid-column: span 3; border-radius: 12px; background: #fcefee; border: 1px solid #f2b7b1; padding: 24px 28px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.roas > div { display: flex; flex-direction: column; gap: 6px; }
+.roas > div > span { font-size: 14px; font-weight: 600; }
+.roas strong { font-size: 44px; font-weight: 800; letter-spacing: -.02em; line-height: 1.2; }
+.system { font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(17, 17, 17, .35); }
+.metric { border: 1px solid #ebebeb; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.metric span { font-size: 13px; color: #6b6b6b; }
+.metric strong { font-size: 22px; font-weight: 700; overflow-wrap: anywhere; }
+.block { display: flex; flex-direction: column; gap: 8px; }
+.block > span { font-size: 13px; font-weight: 700; color: #6b6b6b; letter-spacing: .04em; }
+.divided { padding-top: 18px; border-top: 1px solid #ebebeb; gap: 10px; }
+.summary { font-size: 16px; line-height: 1.75; }
+.suggestions { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.suggestions li { display: flex; gap: 12px; font-size: 15px; line-height: 1.6; }
+.suggestions b { width: 24px; height: 24px; flex: none; border-radius: 50%; background: #fcefee; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+@media (max-width: 479px) { .metrics { grid-template-columns: 1fr; } .roas { grid-column: auto; } .roas strong { font-size: 34px; } }

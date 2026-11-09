@@ -10,9 +10,9 @@
 .inputGrid > div { min-width: 0; }
 .help { font-size: 13px; color: #6b6b6b; line-height: 1.7; }
 .primary, .secondary { display: inline-flex; justify-content: center; align-items: center; gap: 8px; min-height: 48px; padding: 10px 22px; border: 1px solid transparent; border-radius: 8px; font-size: 15px; font-weight: 600; text-decoration: none; white-space: nowrap; width: fit-content; }
-.primary { background: #e26355; color: white; }
+.primary.primary { background: #e26355; color: white; }
 .primary:hover:not(:disabled) { background: #ce5a4d; }
-.secondary { background: white; color: #111; border-color: #111; }
+.secondary.secondary { background: white; color: #111; border-color: #111; }
 .secondary:hover:not(:disabled) { background: #f7f7f7; }
 .saveRow { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
 .saveRow .help { flex: 1 1 280px; max-width: 420px; }
