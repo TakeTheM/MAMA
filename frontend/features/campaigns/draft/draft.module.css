@@ -1,0 +1,27 @@
+.tabRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #ebebeb; }
+.tabRow > [role="tablist"] { border-bottom: 0; }
+.reference { font-size: 13px; color: #6b6b6b; display: flex; align-items: center; gap: 6px; padding-bottom: 8px; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: #e26355; }
+.labelRow { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.counter { font-size: 13px; color: #6b6b6b; margin-bottom: 8px; }
+.counter[data-over="true"] { color: #d61f26; font-weight: 600; }
+.caption { padding: 14px 16px !important; line-height: 1.7 !important; font-size: 15px; }
+.fieldLabel { display: block; font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+.tagBox { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; border: 1px solid #d9d9d9; border-radius: 8px; }
+.tagBox:focus-within { border-color: #e26355; box-shadow: 0 0 0 3px rgba(226, 99, 85, .35); }
+.tag { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 6px 0 12px; border-radius: 6px; background: #f7f7f7; font-size: 14px; }
+.tag button { width: 24px; height: 24px; border: none; background: none; border-radius: 4px; color: #6b6b6b; display: flex; align-items: center; justify-content: center; padding: 0; }
+.tag button:hover { background: #ebebeb; color: #111; }
+.tagBox .tagInput { flex: 1 1 120px; height: 34px !important; border: none !important; padding: 0 4px !important; font-size: 14px !important; box-shadow: none !important; }
+.footer { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid #ebebeb; }
+.footerActions { display: flex; gap: 12px; flex-wrap: wrap; }
+.previewWrap { display: flex; flex-direction: column; gap: 12px; }
+.previewTitle { font-size: 14px; font-weight: 600; color: #3d3d3d; }
+.preview { border: 1px solid #ebebeb; border-radius: 16px; overflow: hidden; }
+.previewHead { display: flex; align-items: center; gap: 10px; padding: 12px 14px; font-size: 14px; }
+.previewHead span { width: 32px; height: 32px; border-radius: 50%; background: #111; }
+.previewImage { aspect-ratio: 1 / 1; background: #f7f7f7; display: flex; align-items: center; justify-content: center; color: #6b6b6b; font-size: 14px; }
+.preview[data-channel="틱톡"] .previewImage { aspect-ratio: 9 / 12; }
+.previewBody { padding: 14px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; white-space: pre-wrap; }
+.previewTags { color: #3d3d3d; }
+@media (max-width: 767px) { .footer > button, .footerActions, .footerActions > button { width: 100%; } }
