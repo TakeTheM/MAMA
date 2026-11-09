@@ -179,6 +179,14 @@ class RejectInput(InputModel):
 
 class ReviewRequest(InputModel):
     drafts: dict[Channel, ChannelDraft] | None = None
+    content: Content | None = None
+
+    @field_validator("content")
+    @classmethod
+    def nonblank_content(cls, value):
+        if value is not None and not value.strip():
+            raise ValueError("광고 내용은 공백일 수 없습니다")
+        return value
 
 
 Rule = Literal["R1", "R3", "R4", "R5"]

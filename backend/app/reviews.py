@@ -41,12 +41,17 @@ def request_review(db: Session, campaign_id: int, owner_id: int, data: ReviewReq
     campaign = service.owned_campaign(db, campaign_id, owner_id, lock=True)
     if "request-review" not in service.allowed_actions(campaign):
         raise HTTPException(409, "현재 상태에서는 검수를 요청할 수 없습니다")
-    if data is not None and data.drafts is not None:
-        if campaign.status == S.REVIEW_PENDING:
-            raise HTTPException(409, "검수 대기 중에는 초안을 수정할 수 없습니다")
-        if not campaign.channels:
+    if data is not None and (data.drafts is not None or data.content is not None):
+        if campaign.status == S.REVIEW_PENDING and campaign.review["status"] == "pending":
+            raise HTTPException(409, "검수 처리 중에는 문구를 수정할 수 없습니다")
+        if data.drafts is not None and not campaign.channels:
             raise HTTPException(422, "채널이 없는 캠페인은 content로 검수합니다")
-        campaign.drafts = data.model_dump()["drafts"]
+        if data.content is not None and campaign.channels:
+            raise HTTPException(422, "채널이 있는 캠페인은 drafts로 검수합니다")
+        if data.drafts is not None:
+            campaign.drafts = data.model_dump()["drafts"]
+        if data.content is not None:
+            campaign.content = data.content
     if campaign.channels:
         if set(campaign.drafts) != set(campaign.channels):
             raise HTTPException(422, "선택한 모든 채널의 초안이 필요합니다")
@@ -82,13 +87,9 @@ def request_review(db: Session, campaign_id: int, owner_id: int, data: ReviewReq
     campaign = service.owned_campaign(db, campaign_id, owner_id, lock=True)
     if campaign.status != S.REVIEW_PENDING or campaign.revision != revision:
         raise HTTPException(409, "검수 요청이 변경되어 결과를 저장하지 않았습니다")
-    now = utcnow()
-    status = "failed" if error else "changes_requested" if findings else "passed"
+    status = "failed" if error else "passed"
     campaign.review = {"status": status, "findings": findings}
-    if findings:
-        service.record_transition(db, campaign, S.REVISION_REQUESTED, now)
-    else:
-        campaign.updated_at = now
+    campaign.updated_at = utcnow()
     db.commit()
     if error:
         raise error

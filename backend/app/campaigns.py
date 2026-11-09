@@ -69,7 +69,7 @@ def request_review(campaign_id: CampaignID, principal: Authenticated, db: DB, ll
     return reviews.request_review(db, campaign_id, principal.user.id, data, llm)
 
 
-@router.post("/{campaign_id}/approve", response_model=CampaignOut, summary="검수 통과한 문구 승인")
+@router.post("/{campaign_id}/approve", response_model=CampaignOut, summary="검수가 완료된 문구 승인")
 def approve(campaign_id: CampaignID, principal: Authenticated, db: DB):
     return service.transition(db, campaign_id, principal.user.id, "approve")
 

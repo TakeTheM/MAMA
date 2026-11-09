@@ -85,7 +85,8 @@ def test_full_workflow_and_feedback(seller, api, provider):
     }
 
 
-def test_review_rules_and_revision(seller, monkeypatch, provider):
+@pytest.mark.parametrize("revise", [False, True])
+def test_review_findings_warn_and_allow_approval(seller, monkeypatch, provider, revise):
     path = create(seller, PLANNING)
     assert seller.post(path + "/generate-draft").status_code == 200
     drafts = {"instagram": {"caption": "추천해요", "hashtags": ["#100%효과"]}}
@@ -103,15 +104,24 @@ def test_review_rules_and_revision(seller, monkeypatch, provider):
         response = seller.post(path + "/request-review", json={"drafts": drafts})
     assert response.status_code == 200
     campaign = response.json()
-    assert campaign["status"] == "수정 요청" and campaign["content"] == "추천해요"
+    assert campaign["status"] == "검수 대기" and campaign["content"] == "추천해요"
+    assert campaign["review"]["status"] == "passed"
+    assert campaign["allowed_actions"] == ["approve", "request-review"]
     assert [(item["rule"], item["quote"]) for item in campaign["review"]["findings"]] == [
         ("R1", "추천해요"), ("R3", "100%효과"),
     ]
     assert campaign["review"]["findings"][0]["evidence_url"] is None
-    assert seller.post(path + "/approve").status_code == 409
-    fixed = {"instagram": {"caption": "갓 구운 빵", "hashtags": ["#광고"]}}
-    assert seller.post(path + "/request-review", json={"drafts": fixed}).json()["allowed_actions"] == ["approve"]
-    assert seller.post(path + "/approve").status_code == 200
+    if revise:
+        fixed = {"instagram": {"caption": "갓 구운 빵", "hashtags": ["#광고"]}}
+        checked = seller.post(path + "/request-review", json={"drafts": fixed}).json()
+        assert checked["allowed_actions"] == ["approve"] and checked["review"]["findings"] == []
+    approved = seller.post(path + "/approve").json()
+    assert approved["status"] == "승인됨"
+    assert approved["content"] == ("갓 구운 빵" if revise else "추천해요")
+    assert bool(approved["review"]["findings"]) is not revise
+    assert [row["next_status"] for row in seller.get(path + "/history").json()] == [
+        "기획중", "초안 생성됨", "검수 대기", "승인됨",
+    ]
 
 
 def test_provider_failure_preserves_review_and_metrics(seller, monkeypatch, provider):

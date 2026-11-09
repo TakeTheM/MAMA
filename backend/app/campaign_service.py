@@ -74,7 +74,7 @@ def allowed_actions(campaign: Campaign) -> list[str]:
     if campaign.status == S.REVIEW_PENDING:
         if campaign.review["status"] == "passed":
             actions.append("approve")
-        else:
+        if campaign.review["status"] != "passed" or campaign.review["findings"]:
             actions.append("request-review")
     if campaign.status == S.ENDED and campaign.performance and campaign.performance["status"] == "ready":
         actions.append("complete-performance")
