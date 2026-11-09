@@ -12,12 +12,15 @@ TABLE_OPTIONS = {"mysql_engine": "InnoDB", "mysql_charset": "utf8mb4"}
 class CampaignStatus(StrEnum):
     PLANNING = "기획중"
     DRAFTED = "초안 생성됨"
+    REVIEW_PENDING = "검수 대기"
     APPROVED = "승인됨"
     SCHEDULED = "게시 예약됨"
     RUNNING = "집행중"
     ENDED = "종료"
     REJECTED = "플랫폼 반려"
     REVISION_REQUESTED = "수정 요청"
+    CANCELED = "취소"
+    EVALUATED = "성과 평가 완료"
 
 
 class User(Base):
@@ -50,10 +53,11 @@ class Campaign(Base):
         CheckConstraint("budget_amount IS NULL OR budget_amount > 0", name="ck_campaign_amount"),
         CheckConstraint("budget_days IS NULL OR budget_days > 0", name="ck_campaign_days"),
         CheckConstraint(
-            "status IN ('기획중','초안 생성됨','승인됨','게시 예약됨','집행중','종료','플랫폼 반려','수정 요청')",
+            "status IN (" + ",".join(f"'{status.value}'" for status in CampaignStatus) + ")",
             name="ck_campaign_status",
         ),
         Index("ix_campaigns_owner_created", "owner_id", "created_at", "id"),
+        Index("ix_campaigns_owner_evaluated", "owner_id", "status", "evaluated_at", "id"),
         TABLE_OPTIONS,
     )
 
@@ -70,6 +74,9 @@ class Campaign(Base):
     drafts: Mapped[dict] = mapped_column(JSON, default=dict)
     reference_campaign_id: Mapped[int | None] = mapped_column(BigInteger)
     revision: Mapped[int] = mapped_column(Integer, default=0)
+    review: Mapped[dict | None] = mapped_column(JSON)
+    performance: Mapped[dict | None] = mapped_column(JSON)
+    evaluated_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     status: Mapped[str] = mapped_column(String(30), default=CampaignStatus.PLANNING)
     initial_budget_amount: Mapped[int] = mapped_column(BigInteger)
     initial_budget_days: Mapped[int] = mapped_column(Integer)
