@@ -41,7 +41,7 @@ test("검수 요청하면 검수 결과 화면으로 이동한다", async () => 
   render(<CampaignApiProvider api={api}><DraftScreen campaignId="c" /></CampaignApiProvider>);
   fireEvent.click(await screen.findByRole("button", { name: "검수 요청" }));
   await waitFor(() => expect(push).toHaveBeenCalledWith("/campaigns/c/review"));
-  expect((await api.getCampaign("c")).status).toBe("수정 요청");
+  expect((await api.getCampaign("c")).status).toBe("검수 대기");
 });
 
 test("초안 단계가 아니면 편집을 막고 지금 단계로 안내한다", async () => {

@@ -19,7 +19,11 @@ export type RiskFinding = {
   /** 문구 안의 위험 표현. 표시가 빠진 경우(R1)는 null */
   quote: string | null;
   title: string; reason: string; source: { title: string; url: string };
-  suggestion: string; applied: boolean;
+  /** 화면에 보여 줄 고쳐 쓴 문장(현재 문구 기준) */
+  suggestion: string;
+  /** 위험 표현 자리에 넣을 말. 적용하면 이 표현만 바꾼다 */
+  replacement?: string;
+  applied: boolean;
 };
 export type HistoryEntry = { from: CampaignStatus; to: CampaignStatus; at: string; actor: string; reason?: string };
 export type PerformanceInput = { impressions: string; clicks: string; conversions: string; cost: string; revenue: string };
@@ -42,9 +46,14 @@ export type Campaign = {
   /** 초안을 만들 때 참고한 지난 캠페인 (US-01 피드백 루프) */
   reference?: { id: string; name: string; roas: number | null };
   findings: RiskFinding[];
-  /** 백엔드가 알려 주는 승인 버튼 활성 여부. 화면에서 다시 계산하지 않는다. */
+  /**
+   * 백엔드가 알려 주는 승인 버튼 활성 여부. 화면에서 다시 계산하지 않는다.
+   * 위험 표현은 경고일 뿐이라 검수를 마쳤으면 승인할 수 있다. 검수 실패·미완료(고친 뒤 재검수 전)면 false.
+   */
   canApprove: boolean;
   reviewError?: string;
+  /** 검수 뒤에 문구를 직접 고쳐서 다시 검수해야 하는 상태 */
+  reviewOutdated?: boolean;
   schedule?: { scheduledAt: string; amount: number; days: number };
   publishedAt?: string; endedAt?: string; rejectionReason?: string;
   performance?: Performance;

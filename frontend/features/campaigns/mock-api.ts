@@ -12,13 +12,13 @@ import {
  */
 
 const ACTOR = "seller-demo";
-const SYSTEM = "시스템";
 const HOUR = 3600_000;
 
 const ALLOWED: Partial<Record<CampaignStatus, CampaignAction[]>> = {
   기획중: ["save-plan", "generate-draft", "cancel"],
   "초안 생성됨": ["save-draft", "regenerate", "request-review", "cancel"],
-  "검수 대기": ["approve"],
+  // 위험 표현은 경고만 한다. 검수를 마치면 사장님이 확인하고 승인하거나, 고친 뒤 다시 검수할 수 있다.
+  "검수 대기": ["approve", "apply-fix", "save-draft", "request-review"],
   "수정 요청": ["save-draft", "apply-fix", "request-review"],
   "게시 예약됨": ["cancel"],
   종료: ["submit-performance", "complete-evaluation"],
@@ -56,7 +56,7 @@ function review(campaign: Campaign): RiskFinding[] {
       findings.push({
         id: `${channel}-${item.phrase}`, channel, rule: item.rule, ruleLabel: RULE_LABEL[item.rule],
         quote: item.phrase, title: `“${item.phrase}”`, reason: item.reason, source: SOURCES[item.rule],
-        suggestion: copy.caption.replace(item.phrase, item.fix), applied: false,
+        suggestion: copy.caption.replace(item.phrase, item.fix), replacement: item.fix, applied: false,
       });
     }
     if (!hasAdMark(copy)) {
@@ -95,14 +95,15 @@ function seed(now: number): Campaign[] {
 
   const granola = plan({ productName: "수제 그래놀라", productDescription: "국산 귀리와 꿀로 매일 아침 구워요. 바삭하고 달지 않아 아이 간식으로도 좋아요", price: "12900", channels: ["인스타그램", "X"], budgetAmount: "70000" });
   const a: Campaign = {
-    ...base, id: "a", name: "수제 그래놀라 첫 출시", status: "수정 요청", updatedAt: at(2), plan: granola,
+    ...base, id: "a", name: "수제 그래놀라 첫 출시", status: "검수 대기", updatedAt: at(2), plan: granola,
     drafts: {
       인스타그램: { caption: "매일 아침 직접 굽는 수제 그래놀라가 나왔어요. 100% 천연 재료만 사용해서 바삭하고 고소해요. 우유나 요거트에 한 줌 올려 드세요.", hashtags: ["#그래놀라", "#수제간식", "#아침메뉴"] },
       X: { caption: "[광고] 매일 아침 굽는 수제 그래놀라 나왔어요. 프로필 링크에서 만나보세요.", hashtags: ["#광고", "#그래놀라"] },
     },
-    history: log([["기획중", "초안 생성됨", 30], ["초안 생성됨", "검수 대기", 3], ["검수 대기", "수정 요청", 2, SYSTEM]]),
+    history: log([["기획중", "초안 생성됨", 30], ["초안 생성됨", "검수 대기", 2]]),
   };
   a.findings = review(a);
+  a.canApprove = true;
 
   const b: Campaign = {
     ...base, id: "b", name: "봄 니트 가디건 재입고", status: "플랫폼 반려", updatedAt: at(7),
@@ -202,10 +203,7 @@ export function createMockCampaignApi(options: MockOptions = {}): CampaignApi & 
   const pause = () => new Promise<void>((resolve) => setTimeout(resolve, options.delay ?? 300));
 
   function allowedFor(campaign: Campaign): CampaignAction[] {
-    const allowed = [...(ALLOWED[campaign.status] ?? [])];
-    // 검수(L2)가 실패해 결과가 없을 때만 검수 대기에서 다시 요청할 수 있다.
-    if (campaign.status === "검수 대기" && campaign.reviewError) allowed.push("request-review");
-    return allowed;
+    return [...(ALLOWED[campaign.status] ?? [])];
   }
   function snapshot(campaign: Campaign): Campaign {
     return structuredClone({ ...campaign, allowedActions: allowedFor(campaign) });
@@ -311,6 +309,11 @@ export function createMockCampaignApi(options: MockOptions = {}): CampaignApi & 
       if (!campaign.plan.channels.includes(channel)) throw new ApiError("validation", "고르지 않은 채널입니다.");
       maybeFail("save");
       campaign.drafts[channel] = { caption: copy.caption, hashtags: copy.hashtags.filter((tag) => tag.trim()) };
+      if (campaign.status === "검수 대기") {
+        // 검수하지 않은 문구는 승인하지 않는다. 다시 검수해야 승인 버튼이 켜진다.
+        campaign.canApprove = false;
+        campaign.reviewOutdated = true;
+      }
       return commit(campaign);
     },
     async regenerateChannel(id, channel) {
@@ -332,14 +335,15 @@ export function createMockCampaignApi(options: MockOptions = {}): CampaignApi & 
       if (failNext === "llm") {
         // 검수(L2) 실패: 상태는 검수 대기 그대로, 승인 버튼은 꺼진 채로 둔다.
         failNext = undefined;
-        campaign.findings = []; campaign.canApprove = false;
+        campaign.findings = []; campaign.canApprove = false; campaign.reviewOutdated = false;
         campaign.reviewError = "검수 결과를 받지 못했어요. 잠시 뒤 다시 시도해 주세요.";
         return commit(campaign);
       }
       campaign.reviewError = undefined;
+      campaign.reviewOutdated = false;
       campaign.findings = review(campaign);
-      campaign.canApprove = campaign.findings.length === 0;
-      if (campaign.findings.length) move(campaign, "수정 요청", SYSTEM);
+      // 검수 성공 = 승인 가능. 위험 표현은 경고로만 보여 주고 상태를 바꾸지 않는다.
+      campaign.canApprove = true;
       return commit(campaign);
     },
     async applyFix(id, findingId) {
@@ -351,15 +355,22 @@ export function createMockCampaignApi(options: MockOptions = {}): CampaignApi & 
       const copy = campaign.drafts[finding.channel];
       if (!copy) throw new ApiError("conflict", "문구를 찾을 수 없습니다.");
       if (finding.rule === "R1") copy.hashtags = ["#광고", ...copy.hashtags.filter((tag) => tag !== "#광고")];
-      else if (finding.quote && copy.caption.includes(finding.quote)) copy.caption = finding.suggestion;
-      else throw new ApiError("conflict", "문구가 바뀌어서 이 제안을 적용할 수 없어요. 직접 고친 뒤 다시 검수를 요청해 주세요.");
+      else if (finding.quote && finding.replacement !== undefined && copy.caption.includes(finding.quote)) {
+        // 지금 문구에서 이 표현만 바꾼다. 앞서 적용한 수정은 그대로 둔다.
+        copy.caption = copy.caption.replace(finding.quote, finding.replacement);
+      } else throw new ApiError("conflict", "문구가 바뀌어서 이 제안을 적용할 수 없어요. 직접 고친 뒤 다시 검수를 요청해 주세요.");
       finding.applied = true;
+      // 남은 제안의 '고쳐 쓴 문장'도 바뀐 문구 기준으로 다시 보여 준다.
+      for (const other of campaign.findings) {
+        if (other.applied || other.channel !== finding.channel || !other.quote || other.replacement === undefined) continue;
+        other.suggestion = copy.caption.replace(other.quote, other.replacement);
+      }
       return commit(campaign);
     },
     async approve(id) {
       await pause();
       const campaign = requireAction(id, "approve");
-      if (!campaign.canApprove) throw new ApiError("conflict", "위험 표현이 남아 있어 승인할 수 없습니다.");
+      if (!campaign.canApprove) throw new ApiError("conflict", campaign.reviewError ? "검수를 마치지 못해 승인할 수 없어요. 다시 검수를 요청해 주세요." : "고친 문구로 다시 검수를 요청한 뒤 승인할 수 있어요.");
       move(campaign, "승인됨");
       return commit(campaign);
     },

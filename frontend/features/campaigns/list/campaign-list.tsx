@@ -30,7 +30,7 @@ function nextStep(campaign: CampaignSummary): { text: string; urgent?: boolean }
     case "플랫폼 반려": return { text: "반려 사유 보고 다시 고치기", urgent: true };
     case "기획중": return { text: "기획 마저 쓰고 초안 만들기" };
     case "초안 생성됨": return { text: "초안 확인하고 검수 요청" };
-    case "검수 대기": return { text: "검수 결과 확인하기" };
+    case "검수 대기": return campaign.findingCount ? { text: `경고 ${campaign.findingCount}개 확인하고 승인`, urgent: true } : { text: "검수 결과 확인하고 승인" };
     case "승인됨": return { text: "게시 시각·예산 정하기" };
     case "게시 예약됨": return { text: "올린 뒤 ‘게시함’ 기록" };
     case "집행중": return { text: "끝나면 종료 기록" };

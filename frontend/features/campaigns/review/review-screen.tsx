@@ -12,7 +12,7 @@ import type { Campaign, ChannelCopy, RiskFinding } from "../model";
 import { Feedback, Heading, LoadGate, WrongStage } from "../shared";
 import styles from "./review.module.css";
 
-/** 04 검수 결과 · 수정 요청 (US-03) */
+/** 04 검수 결과 · 수정 요청 (US-03). 위험 표현은 경고로 보여 주고, 승인은 사장님이 정한다. */
 export function ReviewScreen({ campaignId }: { campaignId: string }) {
   const session = useCampaign(campaignId);
   return <AppShell active="campaigns">
@@ -36,11 +36,17 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
   const open = campaign.findings.filter((finding) => !finding.applied);
   const [active, setActive] = useState<Channel>(() => open[0]?.channel ?? channels[0]);
   const [editing, setEditing] = useState<ChannelCopy | null>(null);
+  const [confirmApprove, setConfirmApprove] = useState(false);
   const copy = campaign.drafts[active] ?? { caption: "", hashtags: [] };
   const findings = campaign.findings.filter((finding) => finding.channel === active);
   const canEdit = campaign.allowedActions.includes("save-draft");
   const canApprove = campaign.allowedActions.includes("approve") && campaign.canApprove;
 
+  async function approve() {
+    setConfirmApprove(false);
+    const next = await session.run((api) => api.approve(campaign.id));
+    if (next) router.push(`/campaigns/${encodeURIComponent(campaign.id)}/publishing/schedule`);
+  }
   async function rereview() {
     const drafts = editing ? { ...campaign.drafts, [active]: editing } : undefined;
     const next = await session.run((api) => api.requestReview(campaign.id, drafts));
@@ -76,7 +82,7 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
             <div><label htmlFor="edit-tags">해시태그 <span className={ui.optional}>(띄어쓰기로 구분)</span></label><input id="edit-tags" type="text" value={editing.hashtags.join(" ")} disabled={session.pending} onChange={(event) => setEditing({ ...editing, hashtags: event.target.value.split(/\s+/).filter(Boolean).map((tag) => (tag.startsWith("#") ? tag : `#${tag}`)) })} /></div>
             <div className={ui.actions}>
               <button type="button" className={ui.ghost} disabled={session.pending} onClick={() => setEditing(null)}>고치기 그만두기</button>
-              <button type="button" className={`${ui.secondary} ${ui.small}`} disabled={session.pending} onClick={async () => { if (await session.run((api) => api.saveDraft(campaign.id, active, editing), "고친 문구를 저장했어요. 다시 검수를 요청해 주세요.")) setEditing(null); }}>저장</button>
+              <button type="button" className={`${ui.secondary} ${ui.small}`} disabled={session.pending} onClick={async () => { if (await session.run((api) => api.saveDraft(campaign.id, active, editing), "고친 문구를 저장했어요. 다시 검수를 요청하면 승인할 수 있어요.")) setEditing(null); }}>저장</button>
             </div>
           </> : <>
             <span className={styles.caption}>캡션</span>
@@ -87,13 +93,17 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
         </div>
 
         <div className={styles.decision}>
-          <span id="approve-hint" className={ui.help}>{canApprove ? "위험 표현이 없어요. 문구를 확인하고 승인해 주세요." : "승인은 위험 표현이 0개일 때 켜져요"}</span>
-          <button type="button" className={`${ui.secondary} ${ui.off}`} disabled={!canApprove || session.pending} aria-describedby="approve-hint" onClick={async () => {
-            const next = await session.run((api) => api.approve(campaign.id));
-            if (next) router.push(`/campaigns/${encodeURIComponent(campaign.id)}/publishing/schedule`);
-          }}>승인</button>
-          {campaign.allowedActions.includes("request-review") && <button type="button" className={ui.primary} disabled={session.pending} onClick={() => void rereview()}>{session.pending ? "요청 중…" : "다시 검수 요청"}</button>}
+          <span id="approve-hint" className={ui.help}>{approveHint(campaign, canApprove, open.length)}</span>
+          {!confirmApprove && <button type="button" className={`${ui.secondary} ${ui.off}`} disabled={!canApprove || session.pending || editing !== null} aria-describedby="approve-hint" onClick={() => (open.length ? setConfirmApprove(true) : void approve())}>승인</button>}
+          {campaign.allowedActions.includes("request-review") && <button type="button" className={ui.primary} disabled={session.pending} onClick={() => { setConfirmApprove(false); void rereview(); }}>{session.pending ? "요청 중…" : "다시 검수 요청"}</button>}
         </div>
+        {confirmApprove && <div className={ui.confirm} role="alertdialog" aria-labelledby="approve-title" aria-describedby="approve-desc">
+          <div><strong id="approve-title">경고 {open.length}개가 남아 있어요. 이대로 승인할까요?</strong><p id="approve-desc">승인한 계정과 시각이 상태 기록에 남아요. 위험 표현을 확인한 뒤 결정해 주세요.</p></div>
+          <div>
+            <button type="button" className={ui.ghost} disabled={session.pending} onClick={() => setConfirmApprove(false)}>돌아가기</button>
+            <button type="button" className={`${ui.primary} ${ui.small}`} disabled={session.pending} onClick={() => void approve()}>그대로 승인</button>
+          </div>
+        </div>}
         <Feedback pending={session.pending} error={session.error} notice={session.notice} />
       </section>
 
@@ -113,12 +123,18 @@ function ResultBanner({ campaign, openCount }: { campaign: Campaign; openCount: 
     </Banner>;
   }
   if (campaign.reviewError) return <Banner tone="alert" title="검수를 마치지 못했어요"><span>{campaign.reviewError}</span></Banner>;
-  if (campaign.status === "수정 요청" && openCount > 0) {
-    return <Banner tone="alert" title={`위험 표현 ${openCount}개를 찾았어요`}><span>고쳐 쓴 문장을 적용하거나 직접 고친 뒤 다시 검수를 요청하세요. 위험 표현이 0개가 되면 승인할 수 있어요.</span></Banner>;
+  if (campaign.reviewOutdated) return <Banner tone="alert" title="고친 문구로 다시 검수를 요청해 주세요"><span>검수 뒤에 문구를 직접 고쳤어요. 다시 검수해야 승인할 수 있어요.</span></Banner>;
+  if (campaign.status === "수정 요청") return <Banner tone="alert" title="문구를 고친 뒤 다시 검수를 요청해 주세요"><span>다시 검수를 마치면 승인할 수 있어요.</span></Banner>;
+  if (campaign.canApprove && openCount > 0) {
+    return <Banner tone="alert" title={`위험 표현 ${openCount}개를 찾았어요`}><span>고쳐 쓴 문장을 적용하거나 직접 고치는 걸 권해요. 내용을 확인했다면 그대로 승인할 수도 있어요.</span></Banner>;
   }
-  if (campaign.status === "수정 요청") return <Banner tone="alert" title="고친 문구로 다시 검수를 요청해 주세요"><span>제안을 모두 적용했어요. 다시 검수해서 위험 표현이 없으면 승인할 수 있어요.</span></Banner>;
   if (campaign.canApprove) return <Banner tone="ok" title="위험 표현이 없어요"><span>문구를 한 번 더 확인하고 ‘승인’을 눌러 주세요. AI 검수만으로는 승인되지 않아요.</span></Banner>;
   return <Banner tone="alert" title="검수 결과를 기다리고 있어요"><span>잠시 뒤 새로고침해 주세요.</span></Banner>;
+}
+function approveHint(campaign: Campaign, canApprove: boolean, openCount: number) {
+  if (canApprove) return openCount ? `경고 ${openCount}개를 확인했다면 그대로 승인할 수 있어요` : "위험 표현이 없어요. 문구를 확인하고 승인해 주세요.";
+  if (campaign.reviewError) return "검수를 마쳐야 승인할 수 있어요";
+  return "고친 문구로 다시 검수해야 승인할 수 있어요";
 }
 function Banner({ tone, title, children }: { tone: "alert" | "ok"; title: string; children: ReactNode }) {
   return <div role="status" className={tone === "ok" ? ui.okBox : ui.alertBox}><Icon name={tone === "ok" ? "check" : "warning"} size={22} /><div><strong>{title}</strong>{children}</div></div>;
