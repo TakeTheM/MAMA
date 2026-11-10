@@ -29,8 +29,8 @@ TARGETS = {
 REVIEW_WARNING = "플랫폼 심사에 24시간 여유가 없습니다"
 
 
-def owned_campaign(db: Session, campaign_id: int, owner_id: int, *, lock=False) -> Campaign:
-    stmt = select(Campaign).where(Campaign.id == campaign_id, Campaign.owner_id == owner_id)
+def get_campaign(db: Session, campaign_id: int, *, lock=False) -> Campaign:
+    stmt = select(Campaign).where(Campaign.id == campaign_id)
     if lock:
         stmt = stmt.with_for_update().execution_options(populate_existing=True)
     campaign = db.scalar(stmt)
@@ -89,21 +89,21 @@ def present(db: Session, campaign: Campaign, warnings: list[str] | None = None) 
     return result
 
 
-def create_campaign(db: Session, owner_id: int, data: CampaignCreate) -> CampaignOut:
+def create_campaign(db: Session, data: CampaignCreate) -> CampaignOut:
     now = utcnow()
-    campaign = Campaign(owner_id=owner_id, status=S.PLANNING, created_at=now, updated_at=now, **data.model_dump())
+    campaign = Campaign(status=S.PLANNING, created_at=now, updated_at=now, **data.model_dump())
     db.add(campaign)
     db.flush()
     db.add(CampaignStatusHistory(
         campaign_id=campaign.id, previous_status=None, next_status=S.PLANNING,
-        changed_by=owner_id, recorded_at=now, snapshot=history_snapshot(campaign),
+        recorded_at=now, snapshot=history_snapshot(campaign),
     ))
     db.commit()
     return present(db, campaign)
 
 
-def edit_campaign(db: Session, campaign_id: int, owner_id: int, data: CampaignPatch) -> CampaignOut:
-    campaign = owned_campaign(db, campaign_id, owner_id, lock=True)
+def edit_campaign(db: Session, campaign_id: int, data: CampaignPatch) -> CampaignOut:
+    campaign = get_campaign(db, campaign_id, lock=True)
     if "edit" not in ACTIONS[S(campaign.status)]:
         raise HTTPException(409, "현재 상태에서는 광고를 수정할 수 없습니다")
     changes = data.model_dump(exclude_unset=True)
@@ -129,16 +129,16 @@ def record_transition(db: Session, campaign: Campaign, target: S, now, *, snapsh
     campaign.updated_at = now
     db.add(CampaignStatusHistory(
         campaign_id=campaign.id, previous_status=previous, next_status=target,
-        changed_by=campaign.owner_id, recorded_at=now,
+        recorded_at=now,
         snapshot=history_snapshot(campaign) if snapshot is None else snapshot,
     ))
 
 
 def transition(
-    db: Session, campaign_id: int, owner_id: int, action: str,
+    db: Session, campaign_id: int, action: str,
     data: ScheduleInput | PublishInput | EndInput | RejectInput | None = None,
 ) -> CampaignOut:
-    campaign = owned_campaign(db, campaign_id, owner_id, lock=True)
+    campaign = get_campaign(db, campaign_id, lock=True)
     if action == "cancel" and campaign.status in (S.RUNNING, S.ENDED, S.EVALUATED):
         raise HTTPException(409, "이미 올린 광고는 플랫폼에서 직접 중지해 주세요")
     if action not in allowed_actions(campaign):

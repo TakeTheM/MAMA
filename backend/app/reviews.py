@@ -37,8 +37,8 @@ def validated_findings(texts, findings):
     return [finding.model_dump() for finding in by_location.values()]
 
 
-def request_review(db: Session, campaign_id: int, owner_id: int, data: ReviewRequest | None, llm: LLMClient):
-    campaign = service.owned_campaign(db, campaign_id, owner_id, lock=True)
+def request_review(db: Session, campaign_id: int, data: ReviewRequest | None, llm: LLMClient):
+    campaign = service.get_campaign(db, campaign_id, lock=True)
     if "request-review" not in service.allowed_actions(campaign):
         raise HTTPException(409, "현재 상태에서는 검수를 요청할 수 없습니다")
     if data is not None and (data.drafts is not None or data.content is not None):
@@ -84,7 +84,7 @@ def request_review(db: Session, campaign_id: int, owner_id: int, data: ReviewReq
         error = exc
         findings = []
 
-    campaign = service.owned_campaign(db, campaign_id, owner_id, lock=True)
+    campaign = service.get_campaign(db, campaign_id, lock=True)
     if campaign.status != S.REVIEW_PENDING or campaign.revision != revision:
         raise HTTPException(409, "검수 요청이 변경되어 결과를 저장하지 않았습니다")
     status = "failed" if error else "passed"

@@ -42,51 +42,51 @@ def fake_llm():
 
 
 @pytest.mark.mysql
-def test_generate_drafts(seller, fake_llm):
-    created = seller.post(BASE, json=PRODUCT)
+def test_generate_drafts(client, fake_llm):
+    created = client.post(BASE, json=PRODUCT)
     assert created.status_code == 201
     path = f"{BASE}/{created.json()['id']}"
-    result = seller.post(path + "/generate-draft")
+    result = client.post(path + "/generate-draft")
     assert result.status_code == 200
     assert result.json()["status"] == "초안 생성됨"
     assert set(result.json()["drafts"]) == set(PRODUCT["channels"])
     assert result.json()["content"] == result.json()["drafts"]["instagram"]["caption"]
     assert result.json()["reference_campaign_id"] is None
-    assert seller.post(path + "/generate-draft").status_code == 409
-    history = seller.get(path + "/history").json()
+    assert client.post(path + "/generate-draft").status_code == 409
+    history = client.get(path + "/history").json()
     assert len(history) == 2 and history[-1]["next_status"] == "초안 생성됨"
     payload = fake_llm.calls[0][1]
     assert not {"owner_id", "customer_name", "address", "phone", "cost", "id"} & payload.keys()
 
 
 @pytest.mark.mysql
-def test_missing_product_input_does_not_call_llm(seller, fake_llm):
-    created = seller.post(BASE, json={"content": "광고", "initial_budget_amount": 1, "initial_budget_days": 1})
-    result = seller.post(f"{BASE}/{created.json()['id']}/generate-draft")
+def test_missing_product_input_does_not_call_llm(client, fake_llm):
+    created = client.post(BASE, json={"content": "광고", "initial_budget_amount": 1, "initial_budget_days": 1})
+    result = client.post(f"{BASE}/{created.json()['id']}/generate-draft")
     assert result.status_code == 422
     assert fake_llm.calls == []
 
 
 @pytest.mark.mysql
-def test_missing_channel_result_preserves_input(seller, fake_llm):
+def test_missing_channel_result_preserves_input(client, fake_llm):
     fake_llm.handler = lambda task, payload: good_drafts(["instagram"])
-    created = seller.post(BASE, json=PRODUCT).json()
+    created = client.post(BASE, json=PRODUCT).json()
     path = f"{BASE}/{created['id']}"
-    assert seller.post(path + "/generate-draft").status_code == 502
-    detail = seller.get(path).json()
+    assert client.post(path + "/generate-draft").status_code == 502
+    detail = client.get(path).json()
     assert detail["status"] == "기획중" and detail["product_name"] == PRODUCT["product_name"]
     assert detail["drafts"] == {}
 
 
 @pytest.mark.mysql
-def test_llm_failure_keeps_planning_input(seller, fake_llm):
+def test_llm_failure_keeps_planning_input(client, fake_llm):
     def fail(task, payload):
         raise HTTPException(502, "provider failed")
     fake_llm.handler = fail
-    created = seller.post(BASE, json=PRODUCT).json()
+    created = client.post(BASE, json=PRODUCT).json()
     path = f"{BASE}/{created['id']}"
-    assert seller.post(path + "/generate-draft").status_code == 502
-    assert seller.get(path).json()["status"] == "기획중"
+    assert client.post(path + "/generate-draft").status_code == 502
+    assert client.get(path).json()["status"] == "기획중"
 
 
 def test_provider_json_contract_and_payload():

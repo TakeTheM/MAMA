@@ -23,6 +23,7 @@ class CampaignStatus(StrEnum):
     EVALUATED = "성과 평가 완료"
 
 
+# Legacy account tables are retained to preserve historical foreign keys.
 class User(Base):
     __tablename__ = "users"
     __table_args__ = TABLE_OPTIONS
@@ -58,11 +59,13 @@ class Campaign(Base):
         ),
         Index("ix_campaigns_owner_created", "owner_id", "created_at", "id"),
         Index("ix_campaigns_owner_evaluated", "owner_id", "status", "evaluated_at", "id"),
+        Index("ix_campaigns_created", "created_at", "id"),
+        Index("ix_campaigns_evaluated", "status", "evaluated_at", "id"),
         TABLE_OPTIONS,
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     content: Mapped[str] = mapped_column(Text)
     product_name: Mapped[str | None] = mapped_column(String(200))
     product_description: Mapped[str | None] = mapped_column(Text)
@@ -97,6 +100,6 @@ class CampaignStatusHistory(Base):
     campaign_id: Mapped[int] = mapped_column(ForeignKey("campaigns.id"))
     previous_status: Mapped[str | None] = mapped_column(String(30))
     next_status: Mapped[str] = mapped_column(String(30))
-    changed_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    changed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     recorded_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     snapshot: Mapped[dict] = mapped_column(JSON)

@@ -54,11 +54,7 @@ def api(mysql_engine):
         with Session(mysql_engine, expire_on_commit=False) as session:
             yield session
 
-    settings = Settings(
-        _env_file=None,
-        jwt_secret="test-only-signing-key-with-at-least-64-bytes-for-algorithm-rejection-tests",
-        allowed_origins="http://testserver,http://localhost:3000",
-    )
+    settings = Settings(_env_file=None)
     app.dependency_overrides[get_db] = db_override
     app.dependency_overrides[get_settings] = lambda: settings
     clients = []
@@ -78,17 +74,3 @@ def api(mysql_engine):
 @pytest.fixture
 def client(api):
     return api[0]()
-
-
-def register_login(client, email="seller@example.com", password="password-123"):
-    assert client.post("/api/v1/auth/register", json={"email": email, "password": password}).status_code == 201
-    response = client.post("/api/v1/auth/login", json={"email": email, "password": password})
-    assert response.status_code == 200
-    client.headers["Authorization"] = "Bearer " + response.json()["access_token"]
-    return response
-
-
-@pytest.fixture
-def seller(client):
-    register_login(client)
-    return client
