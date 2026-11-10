@@ -1,4 +1,5 @@
 from alembic import context
+from sqlalchemy import text
 
 from app.config import get_settings
 from app.database import Base, make_engine, normalize_database_url
@@ -15,8 +16,13 @@ if context.is_offline_mode():
         context.run_migrations()
 else:
     engine = make_engine(database_url)
-    with engine.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
-        with context.begin_transaction():
-            context.run_migrations()
-    engine.dispose()
+    try:
+        with engine.begin() as connection:
+            if connection.dialect.name == "postgresql":
+                # Serialize concurrent releases, including on transaction poolers.
+                connection.execute(text("SELECT pg_advisory_xact_lock(1296125249, 1)"))
+            context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+            with context.begin_transaction():
+                context.run_migrations()
+    finally:
+        engine.dispose()

@@ -35,9 +35,15 @@ uv run fastapi dev main.py --port 8000
 
 Supabase Transaction pooler에는 `NullPool`과 `prepare_threshold=None`을 적용합니다. URL의 포트·사용자·`sslmode`는 공급자가 제공한 값을 사용하세요. 비밀번호의 URL 예약 문자는 percent encoding이 필요합니다. 기존 MySQL URL `mysql+pymysql://...`도 사용할 수 있습니다.
 
-`GET /api/health`는 서버 상태를, `GET /api/health/db`는 실제 DB 연결을 확인합니다. 연결 성공 응답은 `{"db": 1}`이며 실패 시 접속 정보를 노출하지 않고 `503`을 반환합니다.
+`GET /api/health`는 서버 상태를, `GET /api/health/db`는 실제 DB 연결을 확인합니다. 캠페인과 상태 이력 스키마를 조회할 수 있으면 `{"db": 1}`이며 연결 또는 스키마 조회에 실패하면 접속 정보를 노출하지 않고 `503`을 반환합니다.
 
 로컬 `.env`가 필요하면 `.env.example`을 `.env`로 복사하고 필요한 값을 채웁니다.
+
+### Vercel 배포
+
+백엔드 프로젝트의 Root Directory를 `backend`로 지정하고 Production의 `DATABASE_URL`에 백엔드가 사용할 PostgreSQL 주소를 설정합니다. 빌드 명령 재정의가 켜져 있다면 해제해 `pyproject.toml`의 빌드 스크립트가 실행되도록 합니다. 프로덕션 빌드는 앱 배포 전에 같은 DB에서 `alembic upgrade head`를 실행합니다. 스키마를 변경할 수 있는 DB 계정이 필요합니다.
+
+프리뷰 빌드는 DB를 변경하지 않습니다. 프리뷰용 DB는 해당 환경의 `DATABASE_URL`을 지정한 뒤 `backend/`에서 `uv run alembic upgrade head`로 별도로 준비합니다. 이미 배포한 환경에서 `relation "campaigns" does not exist`가 발생하면, 해당 배포와 같은 DB 및 스키마에 마이그레이션을 적용하고 `GET /api/health/db`가 200을 반환하는지 확인합니다.
 
 ### 캠페인 API
 

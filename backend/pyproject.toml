@@ -25,3 +25,6 @@ markers = ["mysql: requires a dedicated MySQL test database"]
 
 [tool.fastapi]
 entrypoint = "main:app"
+
+[tool.vercel.scripts]
+build = "sh scripts/vercel-build.sh"
