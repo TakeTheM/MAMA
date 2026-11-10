@@ -199,3 +199,15 @@
   .actions > :is(.primary, .secondary), .actionsSplit > :is(.primary, .secondary) { width: 100%; }
 }
 @media (prefers-reduced-motion: no-preference) { .primary, .secondary, .ghost, .chip, .pill { transition: background-color .15s, border-color .15s; } }
+
+/* 로딩바: 불러오는 중(.empty[role=status]), 요청 처리 중(aria-busy, .feedback의 처리 중 문구)일 때 화면 맨 위에 보인다 */
+.loadingBar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; height: 3px; overflow: hidden; pointer-events: none; opacity: 0; transition: opacity .2s; }
+.loadingBar::before, .empty[role="status"]::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; border-radius: inherit; background: var(--accent); animation: loading-slide 1.1s ease-in-out infinite; }
+.shell:has([aria-busy="true"], .empty[role="status"], .feedback > p[role="status"]:not(.success)) .loadingBar { opacity: 1; transition-delay: .15s; }
+/* 불러오는 중 안내 상자 안에도 같은 막대를 그린다 */
+.empty[role="status"] { position: relative; overflow: hidden; }
+.empty[role="status"]::after { top: auto; height: 3px; }
+@keyframes loading-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@media (prefers-reduced-motion: reduce) {
+  .loadingBar::before, .empty[role="status"]::after { animation: none; width: 100%; opacity: .6; }
+}

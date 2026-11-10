@@ -40,6 +40,8 @@ export function AppFrame({ children }: { children: ReactNode }) {
       <Link href="/" className={ui.brand}><span>M</span>MAMA</Link>
       <div className={ui.seller}><span>우리 가게</span><b aria-label="셀러 계정">셀</b></div>
     </header>
+    {/* 화면 어딘가가 기다리는 중이면(불러오는 중·요청 처리 중) CSS가 이 막대를 보여 준다 */}
+    <div className={ui.loadingBar} aria-hidden="true" />
     <div className={ui.workspace}>
       <Suspense fallback={<Nav active={null} />}><CurrentNav /></Suspense>
       <main id="main" className={ui.main} tabIndex={-1}>
