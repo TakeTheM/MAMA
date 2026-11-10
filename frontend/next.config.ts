@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
-const backendUrl = process.env.BACKEND_URL || "http://localhost:8000";
+// 끝의 / 는 떼어 낸다 (https://example.com/ 로 넣어도 //api 가 되지 않게).
+const backendUrl = (process.env.BACKEND_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
   /* config options here */

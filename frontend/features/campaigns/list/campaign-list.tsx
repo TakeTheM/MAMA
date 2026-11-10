@@ -66,7 +66,7 @@ export function CampaignListScreen() {
   const count = (group: CampaignStatus[]) => items?.filter((item) => inGroup(group, item.status)).length ?? 0;
   const visible = items?.filter((item) => filter === "all" || inGroup(GROUPS[filter], item.status)) ?? [];
 
-  return <AppShell active="campaigns">
+  return <AppShell>
     <div className={ui.pageHead}>
       <div><h1>캠페인</h1><p className={ui.lead}>광고 한 건을 기획부터 성과 확인까지 이어서 관리해요.</p></div>
       <Link href="/campaigns/new" className={ui.primary}><Icon name="plus" size={18} />새 캠페인 만들기</Link>
@@ -91,7 +91,7 @@ export function CampaignListScreen() {
 export function PerformanceListScreen() {
   const { items, error, retry } = useCampaignList();
   const rows = items?.filter((item) => inGroup([...GROUPS.waiting, ...GROUPS.done], item.status)) ?? [];
-  return <AppShell active="performance">
+  return <AppShell>
     <div className={ui.pageHead}><div><h1>성과 기록</h1><p className={ui.lead}>끝난 광고의 성과 숫자를 넣고, 요약과 다음 광고 제안을 확인해요.</p></div></div>
     {!items ? <ListState error={error} retry={retry} /> : <section aria-label="성과 기록 목록" className={ui.stack}>
       <CampaignTable items={rows} column="roas" empty="아직 끝난 광고가 없어요. 집행중인 광고를 종료 기록하면 여기에 나와요." />

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Noto_Sans_KR } from "next/font/google";
+import { AppFrame } from "@/components/ui/app-shell";
 import "./globals.css";
 
 const noto = Noto_Sans_KR({
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="ko" className={`${noto.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col"><AppFrame>{children}</AppFrame></body>
     </html>
   );
 }

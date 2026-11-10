@@ -9,7 +9,7 @@ const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 function Harness({ mode = "schedule", adapter }: { mode?: "schedule" | "records"; adapter?: PublishingAdapter }) {
-  return <PublishingProvider campaignId="demo" adapter={adapter}><PublishingShell>{mode === "schedule" ? <ScheduleScreen /> : <RecordsScreen />}</PublishingShell></PublishingProvider>;
+  return <PublishingProvider campaignId="demo" adapter={adapter} demo={!adapter}><PublishingShell>{mode === "schedule" ? <ScheduleScreen /> : <RecordsScreen />}</PublishingShell></PublishingProvider>;
 }
 function fillPlan(hours = 48) {
   const value = toSeoulInput(new Date(Date.now() + hours * 3600000).toISOString());
