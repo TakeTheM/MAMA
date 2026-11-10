@@ -16,7 +16,7 @@ const EMPTY: PlanInput = { productName: "", productDescription: "", price: "", c
 
 /** 02 새 캠페인 · 기획중 (US-01) */
 export function NewCampaignScreen() {
-  return <AppShell active="new">
+  return <AppShell>
     <div className={ui.pageHead}><div>
       <p className={ui.breadcrumb}><Link href="/">캠페인</Link><span aria-hidden="true">›</span><span>새 캠페인</span></p>
       <h1>어떤 광고를 만들까요?</h1>
@@ -29,7 +29,7 @@ export function NewCampaignScreen() {
 /** 임시 저장한 기획중 캠페인을 이어서 쓰는 화면 */
 export function PlanScreen({ campaignId }: { campaignId: string }) {
   const session = useCampaign(campaignId);
-  return <AppShell active="campaigns">
+  return <AppShell>
     <LoadGate campaign={session.campaign} loadError={session.loadError} reload={session.reload}>{(campaign) => <>
       <Heading campaign={campaign} pending={session.pending} onCancel={() => session.run((api) => api.cancel(campaign.id), "캠페인을 취소했어요.")} />
       {campaign.allowedActions.includes("generate-draft")

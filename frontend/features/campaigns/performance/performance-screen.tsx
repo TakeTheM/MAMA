@@ -19,7 +19,7 @@ const FIELDS: { key: PerformanceField; label: string; unit?: string }[] = [
 /** 07 성과 요약·다음 제안 (US-05) */
 export function PerformanceScreen({ campaignId }: { campaignId: string }) {
   const session = useCampaign(campaignId);
-  return <AppShell active="performance">
+  return <AppShell>
     <LoadGate campaign={session.campaign} loadError={session.loadError} reload={session.reload}>{(campaign) => <>
       <Heading campaign={campaign} pending={session.pending} onCancel={() => session.run((api) => api.cancel(campaign.id))} />
       {campaign.status === "종료" || campaign.status === "성과 평가 완료"

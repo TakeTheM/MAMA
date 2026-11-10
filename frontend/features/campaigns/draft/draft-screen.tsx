@@ -15,7 +15,7 @@ import styles from "./draft.module.css";
 /** 03 초안 확인·수정 (US-01, US-02) */
 export function DraftScreen({ campaignId }: { campaignId: string }) {
   const session = useCampaign(campaignId);
-  return <AppShell active="campaigns">
+  return <AppShell>
     <LoadGate campaign={session.campaign} loadError={session.loadError} reload={session.reload}>{(campaign) => <>
       <Heading campaign={campaign} pending={session.pending} onCancel={() => session.run((api) => api.cancel(campaign.id), "캠페인을 취소했어요.")} />
       {campaign.allowedActions.includes("request-review") && campaign.status === "초안 생성됨"

@@ -15,7 +15,7 @@ import styles from "./review.module.css";
 /** 04 검수 결과 · 수정 요청 (US-03). 위험 표현은 경고로 보여 주고, 승인은 사장님이 정한다. */
 export function ReviewScreen({ campaignId }: { campaignId: string }) {
   const session = useCampaign(campaignId);
-  return <AppShell active="campaigns">
+  return <AppShell>
     <LoadGate campaign={session.campaign} loadError={session.loadError} reload={session.reload}>{(campaign) => <>
       <Heading campaign={campaign} pending={session.pending} onCancel={() => session.run((api) => api.cancel(campaign.id), "캠페인을 취소했어요.")} />
       {campaign.status === "수정 요청" || campaign.status === "검수 대기"

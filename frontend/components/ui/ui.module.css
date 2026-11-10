@@ -163,6 +163,10 @@
 .empty h1, .empty h2 { font-size: 22px; font-weight: 700; }
 .empty p { color: var(--muted); margin-top: 12px; }
 .empty :is(button, a) { margin-top: 24px; }
+/* 빠르게 불러오면 안내가 번쩍 보였다 사라지지 않도록 0.3초 뒤에 나타낸다 */
+.empty[role="status"] { animation: appear .2s ease-out .3s both; }
+@keyframes appear { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .empty[role="status"] { animation: none; } }
 .facts { display: flex; flex-direction: column; gap: 12px; }
 .facts > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .facts > div:last-child { padding-bottom: 0; border: 0; }

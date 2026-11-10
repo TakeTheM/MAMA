@@ -17,7 +17,7 @@ import styles from "./publishing.module.css";
 export function PublishingShell({ children }: { children: ReactNode }) {
   const demo = useDemoScenario();
   const { campaign, pending, mutate } = usePublishingSession();
-  return <AppShell active="campaigns" notice={demo && <DemoNotice>
+  return <AppShell notice={demo && <DemoNotice>
     {<details><summary>데모 도구</summary><div className={ui.demoPanel}><label htmlFor="scenario">테스트 시나리오</label><select id="scenario" value={demo.scenario} disabled={pending} onChange={(event) => demo.changeScenario(event.target.value as Scenario)}>{SCENARIOS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div></details>}
   </DemoNotice>}>
     {campaign && <SharedHeading name={campaign.name} status={campaign.status} detail={`${campaign.product} · ${campaign.channels.join(", ")}`} canceledFrom={canceledFrom(campaign.status, campaign.history)} pending={pending}
