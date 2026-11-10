@@ -15,9 +15,9 @@ def creative(campaign: Campaign) -> dict:
     return {"content": campaign.content}
 
 
-def feedback_context(db: Session, owner_id: int) -> tuple[int | None, dict | None]:
+def feedback_context(db: Session) -> tuple[int | None, dict | None]:
     campaign = db.scalar(
-        select(Campaign).where(Campaign.owner_id == owner_id, Campaign.status == S.EVALUATED)
+        select(Campaign).where(Campaign.status == S.EVALUATED)
         .order_by(Campaign.evaluated_at.desc(), Campaign.id.desc()).limit(1)
     )
     if campaign is None:
@@ -32,8 +32,8 @@ def present(campaign: Campaign) -> PerformanceOut:
     return PerformanceOut(**campaign.performance, evaluated_at=campaign.evaluated_at)
 
 
-def generate(db: Session, campaign_id: int, owner_id: int, data: PerformanceInput, llm: LLMClient):
-    campaign = service.owned_campaign(db, campaign_id, owner_id, lock=True)
+def generate(db: Session, campaign_id: int, data: PerformanceInput, llm: LLMClient):
+    campaign = service.get_campaign(db, campaign_id, lock=True)
     if campaign.status != S.ENDED:
         raise HTTPException(409, "종료된 캠페인에서만 성과를 입력할 수 있습니다")
 
@@ -51,7 +51,7 @@ def generate(db: Session, campaign_id: int, owner_id: int, data: PerformanceInpu
     except HTTPException as exc:
         error = exc
 
-    campaign = service.owned_campaign(db, campaign_id, owner_id, lock=True)
+    campaign = service.get_campaign(db, campaign_id, lock=True)
     if campaign.status != S.ENDED or campaign.revision != revision:
         raise HTTPException(409, "성과 입력이 변경되어 결과를 저장하지 않았습니다")
     campaign.performance = (
@@ -64,8 +64,8 @@ def generate(db: Session, campaign_id: int, owner_id: int, data: PerformanceInpu
     return present(campaign)
 
 
-def complete(db: Session, campaign_id: int, owner_id: int):
-    campaign = service.owned_campaign(db, campaign_id, owner_id, lock=True)
+def complete(db: Session, campaign_id: int):
+    campaign = service.get_campaign(db, campaign_id, lock=True)
     if "complete-performance" not in service.allowed_actions(campaign):
         raise HTTPException(409, "현재 성과 입력의 요약을 확인한 뒤 평가를 완료할 수 있습니다")
     now = utcnow()

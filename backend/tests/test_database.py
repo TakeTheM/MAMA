@@ -102,12 +102,10 @@ def test_real_database_health_endpoint_and_connection_options(api, mysql_engine)
 
 def test_process_environment_without_dotenv(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://user:password@localhost/mama")
-    monkeypatch.setenv("JWT_SECRET", "test-signing-key-with-at-least-32-bytes")
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("LLM_MODEL", raising=False)
     settings = Settings(_env_file=None)
     assert settings.database_url == "postgresql://user:password@localhost/mama"
-    assert settings.signing_key() == "test-signing-key-with-at-least-32-bytes"
     assert not settings.llm_api_key.get_secret_value()
     with TestClient(app) as client:
         assert client.get("/api/health").json() == {"status": "ok"}

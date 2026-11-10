@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import AwareDatetime, BaseModel, BeforeValidator, ConfigDict, EmailStr, Field, field_validator
+from pydantic import AwareDatetime, BaseModel, BeforeValidator, ConfigDict, Field, field_validator
 
 from app.models import CampaignStatus
 
@@ -70,33 +70,6 @@ ISODateTime = Annotated[AwareDatetime, BeforeValidator(parse_iso_datetime)]
 
 class InputModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-
-class Credentials(InputModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        json_schema_extra={"example": {"email": "seller@example.com", "password": "example-password-123"}},
-    )
-    email: EmailStr = Field(max_length=254)
-    password: str = Field(min_length=8, max_length=128)
-
-    @field_validator("email", mode="before")
-    @classmethod
-    def normalize_email(cls, value):
-        return value.strip().lower() if isinstance(value, str) else value
-
-
-class UserOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-    email: str
-    created_at: datetime
-
-
-class TokenOut(BaseModel):
-    access_token: str
-    token_type: Literal["bearer"] = "bearer"
-    expires_in: int = 900
 
 
 class CampaignCreate(ProductFields, InputModel):
@@ -254,7 +227,6 @@ class PerformanceOut(PerformanceInput):
 class CampaignOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
-    owner_id: int
     content: str
     product_name: str | None
     product_description: str | None
@@ -294,6 +266,5 @@ class HistoryOut(BaseModel):
     campaign_id: int
     previous_status: CampaignStatus | None
     next_status: CampaignStatus
-    changed_by: int
     recorded_at: datetime
     snapshot: dict

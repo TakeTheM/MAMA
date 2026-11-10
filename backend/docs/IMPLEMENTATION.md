@@ -1,5 +1,7 @@
 # 백엔드 구현 결정 (2026-11-02)
 
+> 2026-11-10 변경 후에는 JWT 인증과 캠페인 소유권 검사를 제거했습니다. 현재 동작은 백엔드 README를 따릅니다.
+
 2026-11-03 변경: DB 접속은 `DATABASE_URL`로 전달하며 PostgreSQL/Supabase(psycopg, NullPool, prepared statement 비활성화)를 지원합니다. 아래 MySQL 선택은 최초 구현 기록입니다. 현재는 MySQL 설치나 `MYSQL_*` 설정 없이 외부 PostgreSQL에 연결할 수 있고 LLM 설정은 나중에 추가할 수 있습니다.
 
 이 문서는 F-04 우선 구현에서 확정한 기술과 범위를 기록합니다. 현재 실행 방법과 API 사용법은 [백엔드 README](../README.md)를 따릅니다. 구현 코드·설정·테스트·실행 스크립트·배포용 의존성·문서는 모두 `backend/` 안에서 관리합니다.
