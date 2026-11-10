@@ -37,7 +37,7 @@ Supabase Transaction pooler에는 `NullPool`과 `prepare_threshold=None`을 적�
 
 `GET /api/health`는 서버 상태를, `GET /api/health/db`는 실제 DB 연결을 확인합니다. 연결 성공 응답은 `{"db": 1}`이며 실패 시 접속 정보를 노출하지 않고 `503`을 반환합니다.
 
-로컬 `.env`가 필요하면 `.env.example`을 복사해 채우거나 `python3 scripts/init_backend_env.py`로 JWT 키만 생성할 수 있습니다. 기존 파일은 덮어쓰지 않습니다.
+로컬 `.env`가 필요하면 `.env.example`을 `.env`로 복사하고 필요한 값을 채웁니다.
 
 ### 캠페인 API
 
