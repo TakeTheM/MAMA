@@ -53,6 +53,15 @@ test("제안을 모두 적용하고 다시 검수하면 경고 없이 바로 승
   await waitFor(() => expect(push).toHaveBeenCalledWith("/campaigns/a/publishing/schedule"));
 });
 
+test("제안을 적용해도 위쪽 안내 띠는 그대로 두고, 바뀐 자리만 표시한다", async () => {
+  render(<CampaignApiProvider api={createMockCampaignApi({ delay: 0 })}><ReviewScreen campaignId="a" /></CampaignApiProvider>);
+  const banner = await screen.findByText("위험 표현 2개를 찾았어요");
+  fireEvent.click(screen.getAllByRole("button", { name: "적용" })[0]);
+  expect(screen.getByText("위험 표현 2개를 찾았어요")).toBe(banner);
+  expect(document.querySelectorAll("ins")).toHaveLength(1);
+  expect(screen.getByText("고친 문구로 다시 검수를 요청해 주세요")).toBeDefined();
+});
+
 test("검수 뒤 직접 고치면 다시 검수할 때까지 승인을 막고, 고친 문구를 보내 다시 거른다", async () => {
   render(<CampaignApiProvider api={createMockCampaignApi({ delay: 0 })}><ReviewScreen campaignId="a" /></CampaignApiProvider>);
   fireEvent.click(await screen.findByRole("button", { name: "직접 고치기" }));

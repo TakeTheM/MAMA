@@ -3,6 +3,12 @@
 .tags { font-size: 15px; line-height: 1.8; color: #3d3d3d; overflow-wrap: anywhere; }
 .copy mark, .tags mark { background: #fff0f0; color: #111; border-bottom: 2px solid #d61f26; padding: 1px 2px; }
 .tags .missing { border-bottom-style: dashed; }
+/* 제안을 적용한 자리: 위험 표시 대신 초록 밑줄로 바뀐 곳을 알려 준다 */
+.copy .fixed, .tags .fixed { text-decoration: none; background: #eef8f1; color: #111; border-bottom: 2px solid #217344; padding: 1px 2px; animation: fixed-in .4s ease-out; }
+.copy .fixed sup, .tags .fixed sup { color: #217344; }
+@keyframes fixed-in { from { background: #c9ecd4; } }
+.finding { transition: background-color .2s; }
+@media (prefers-reduced-motion: reduce) { .copy .fixed, .tags .fixed { animation: none; } .finding { transition: none; } }
 .copy sup, .tags sup { color: #111; font-weight: 700; font-size: 11px; margin-left: 2px; }
 .decision { display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; align-items: center; }
 .decision > span { margin-right: auto; }

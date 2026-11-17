@@ -97,7 +97,8 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
   }
 
   return <>
-    <ResultBanner campaign={campaign} openCount={open.length} changed={changed} />
+    {/* 안내 띠는 서버 검수 결과만 보여 준다. 제안을 적용할 때마다 띠가 바뀌면 화면이 새로 불러와진 것처럼 보여서, 고친 상태는 아래 승인 줄에서만 알린다. */}
+    <ResultBanner campaign={campaign} openCount={campaign.findings.filter((finding) => !finding.applied).length} />
     <div className={`${ui.columns} ${ui.columnsWide}`}>
       <section aria-label="검수한 문구" className={ui.stack} aria-busy={session.pending}>
         <div role="tablist" aria-label="채널" className={ui.tabs}>
@@ -123,7 +124,9 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
         </div>
 
         <div className={styles.decision}>
-          <span id="approve-hint" className={ui.help}>{approveHint(campaign, canApprove, open.length, changed)}</span>
+          {changed
+            ? <span id="approve-hint" className={ui.help} aria-live="polite"><strong>고친 문구로 다시 검수를 요청해 주세요</strong> 고친 내용은 아직 저장 전이에요. ‘다시 검수 요청’을 누르면 저장하고 검수해요.</span>
+            : <span id="approve-hint" className={ui.help}>{approveHint(campaign, canApprove, open.length)}</span>}
           {!confirmApprove && <button type="button" className={`${ui.secondary} ${ui.off}`} disabled={!canApprove || session.pending} aria-describedby="approve-hint" onClick={() => (open.length ? setConfirmApprove(true) : void approve())}>승인</button>}
           {(campaign.allowedActions.includes("request-review") || changed) && <button type="button" className={ui.primary} disabled={session.pending || !campaign.allowedActions.includes("request-review")} onClick={() => { setConfirmApprove(false); void rereview(); }}>{session.pending ? "요청 중…" : "다시 검수 요청"}</button>}
         </div>
@@ -146,8 +149,7 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
   </>;
 }
 
-function ResultBanner({ campaign, openCount, changed }: { campaign: Campaign; openCount: number; changed: boolean }) {
-  if (changed) return <Banner tone="alert" title="고친 문구로 다시 검수를 요청해 주세요"><span>고친 내용은 아직 저장되지 않았어요. ‘다시 검수 요청’을 누르면 고친 문구로 저장하고 검수해요.</span></Banner>;
+function ResultBanner({ campaign, openCount }: { campaign: Campaign; openCount: number }) {
   if (campaign.reviewPending) return <Banner tone="alert" title="검수하고 있어요"><span>잠시 뒤 새로고침해 주세요.</span></Banner>;
   if (campaign.rejectionReason && campaign.status === "수정 요청") {
     return <Banner tone="alert" title="플랫폼에서 반려된 광고예요">
@@ -163,8 +165,7 @@ function ResultBanner({ campaign, openCount, changed }: { campaign: Campaign; op
   if (campaign.canApprove) return <Banner tone="ok" title="위험 표현이 없어요"><span>문구를 한 번 더 확인하고 ‘승인’을 눌러 주세요. AI 검수만으로는 승인되지 않아요.</span></Banner>;
   return <Banner tone="alert" title="검수 결과를 기다리고 있어요"><span>잠시 뒤 새로고침해 주세요.</span></Banner>;
 }
-function approveHint(campaign: Campaign, canApprove: boolean, openCount: number, changed: boolean) {
-  if (changed) return "고친 문구로 다시 검수해야 승인할 수 있어요";
+function approveHint(campaign: Campaign, canApprove: boolean, openCount: number) {
   if (canApprove) return openCount ? `경고 ${openCount}개를 확인했다면 그대로 승인할 수 있어요` : "위험 표현이 없어요. 문구를 확인하고 승인해 주세요.";
   if (campaign.reviewError) return "검수를 마쳐야 승인할 수 있어요";
   return "고친 문구로 다시 검수해야 승인할 수 있어요";
@@ -173,19 +174,21 @@ function Banner({ tone, title, children }: { tone: "alert" | "ok"; title: string
   return <div role="status" className={tone === "ok" ? ui.okBox : ui.alertBox}><Icon name={tone === "ok" ? "check" : "warning"} size={22} /><div><strong>{title}</strong>{children}</div></div>;
 }
 
-/** 캡션 안의 위험 표현을 찾아 번호와 함께 강조한다 */
+/** 캡션 안의 위험 표현을 찾아 번호와 함께 강조하고, 제안을 적용한 자리는 바뀐 문구를 초록 밑줄로 보여 준다 */
 function Marked({ text, findings }: { text: string; findings: RiskFinding[] }) {
-  const marks = findings.map((finding, index) => ({ finding, no: index + 1 })).filter(({ finding }) => finding.quote && !finding.applied);
+  const marks = findings.map((finding, index) => ({ finding, no: index + 1, fixed: finding.applied, needle: finding.applied ? finding.replacement : finding.quote }))
+    .filter((mark): mark is typeof mark & { needle: string } => Boolean(mark.needle));
   const parts: ReactNode[] = [];
   let rest = text;
   let key = 0;
   while (rest) {
-    const hit = marks.map((mark) => ({ ...mark, at: rest.indexOf(mark.finding.quote as string) })).filter((mark) => mark.at >= 0).sort((x, y) => x.at - y.at)[0];
+    const hit = marks.map((mark) => ({ ...mark, at: rest.indexOf(mark.needle) })).filter((mark) => mark.at >= 0).sort((x, y) => x.at - y.at)[0];
     if (!hit) { parts.push(rest); break; }
-    const quote = hit.finding.quote as string;
     parts.push(rest.slice(0, hit.at));
-    parts.push(<mark key={key++}><span>{quote}</span><sup>{hit.no}</sup></mark>);
-    rest = rest.slice(hit.at + quote.length);
+    parts.push(hit.fixed
+      ? <ins key={key++} className={styles.fixed}><span>{hit.needle}</span><sup>{hit.no}</sup></ins>
+      : <mark key={key++}><span>{hit.needle}</span><sup>{hit.no}</sup></mark>);
+    rest = rest.slice(hit.at + hit.needle.length);
   }
   return <>{parts}</>;
 }
