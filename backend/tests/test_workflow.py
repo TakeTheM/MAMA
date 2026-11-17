@@ -100,6 +100,7 @@ def test_review_findings_warn_and_allow_approval(client, monkeypatch, provider, 
         ("R1", "추천해요"), ("R3", "100%효과"),
     ]
     assert campaign["review"]["findings"][0]["evidence_url"] is None
+    assert campaign["review"]["findings"][0]["replacement"] is None
     if revise:
         fixed = {"instagram": {"caption": "갓 구운 빵", "hashtags": ["#광고"]}}
         checked = client.post(path + "/request-review", json={"drafts": fixed}).json()
@@ -111,6 +112,26 @@ def test_review_findings_warn_and_allow_approval(client, monkeypatch, provider, 
     assert [row["next_status"] for row in client.get(path + "/history").json()] == [
         "기획중", "초안 생성됨", "검수 대기", "승인됨",
     ]
+
+
+def test_review_finding_keeps_replacement(client, monkeypatch, provider):
+    path = create(client, PLANNING)
+    assert client.post(path + "/generate-draft").status_code == 200
+    drafts = {"instagram": {"caption": "업계 1위 빵", "hashtags": []}}
+
+    def review(self, task, payload, output_type):
+        return output_type(findings=[{
+            "channel": "instagram", "start": 0, "end": 5, "quote": "업계 1위", "rule": "R3",
+            "reason": "근거 없는 최상급 표현", "suggestion": "객관적 근거를 밝히거나 빼 주세요", "replacement": "인기",
+        }])
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(LLMClient, "complete", review)
+        response = client.post(path + "/request-review", json={"drafts": drafts})
+    assert response.status_code == 200
+    finding = response.json()["review"]["findings"][0]
+    assert (finding["quote"], finding["replacement"]) == ("업계 1위", "인기")
+    assert client.get(path).json()["review"]["findings"][0]["replacement"] == "인기"
 
 
 def test_provider_failure_preserves_review_and_metrics(client, monkeypatch, provider):

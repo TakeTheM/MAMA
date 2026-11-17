@@ -3,7 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { CampaignApiProvider } from "../features/campaigns/api-context";
 import { createMockCampaignApi } from "../features/campaigns/mock-api";
 import type { RiskFinding } from "../features/campaigns/model";
-import { ReviewScreen, applyFinding } from "../features/campaigns/review/review-screen";
+import { ReviewScreen, applyFinding, canApply } from "../features/campaigns/review/review-screen";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace: vi.fn() }) }));
@@ -40,8 +40,8 @@ test("경고가 남아 있으면 한 번 더 확인받고 승인한다", async (
 test("제안을 모두 적용하고 다시 검수하면 경고 없이 바로 승인한다", async () => {
   render(<CampaignApiProvider api={createMockCampaignApi({ delay: 0 })}><ReviewScreen campaignId="a" /></CampaignApiProvider>);
   await screen.findByText("위험 표현 2개를 찾았어요");
-  fireEvent.click(screen.getAllByRole("button", { name: "적용" })[0]);
-  fireEvent.click(screen.getAllByRole("button", { name: "적용" })[0]);
+  fireEvent.click(screen.getByRole("button", { name: "적용" }));
+  fireEvent.click(screen.getByRole("button", { name: "#광고 붙이기" }));
   expect(screen.getAllByRole("button", { name: "적용됨" })).toHaveLength(2);
   expect(screen.getByText("고친 문구로 다시 검수를 요청해 주세요")).toBeDefined();
   expect(approveButton().disabled).toBe(true);
@@ -58,7 +58,7 @@ test("제안을 적용해도 위쪽 안내 띠는 그대로 두고, 바뀐 자�
   const banner = await screen.findByText("위험 표현 2개를 찾았어요");
   fireEvent.click(screen.getAllByRole("button", { name: "적용" })[0]);
   expect(screen.getByText("위험 표현 2개를 찾았어요")).toBe(banner);
-  expect(document.querySelectorAll("ins")).toHaveLength(1);
+  expect([...document.querySelectorAll("ins")].filter((node) => node.querySelector("sup"))).toHaveLength(1);
   expect(screen.getByText("고친 문구로 다시 검수를 요청해 주세요")).toBeDefined();
 });
 
@@ -99,3 +99,27 @@ test("제안을 차례로 적용해도 앞서 고친 표현이 되돌아오지 �
   const tag = applyFinding({ caption: "가을 신상", hashtags: ["#최고급"] }, finding("3", "최고급", "고급"));
   expect(tag?.hashtags).toEqual(["#고급"]);
 });
+
+test("바꿀 문구가 없는 경고는 적용 버튼 대신 직접 고치라고 안내하고, 광고 표시 누락은 #광고를 붙인다", () => {
+  const base = { channel: "인스타그램" as const, title: "", reason: "", applied: false };
+  const advice: RiskFinding = { ...base, id: "1", rule: "R3", ruleLabel: "거짓·과장", quote: "업계 1위", suggestion: "객관적 근거를 밝히거나 빼 주세요" };
+  expect(canApply(advice)).toBe(false);
+  expect(applyFinding({ caption: "업계 1위 빵", hashtags: [] }, advice)).toBeNull();
+  const adMark: RiskFinding = { ...base, id: "2", rule: "R1", ruleLabel: "협찬 미표시", quote: "추천해요", suggestion: "광고임을 알려 주세요" };
+  expect(canApply(adMark)).toBe(true);
+  expect(applyFinding({ caption: "추천해요", hashtags: ["#빵"] }, adMark)?.hashtags).toEqual(["#광고", "#빵"]);
+  const removal: RiskFinding = { ...advice, id: "3", replacement: "" };
+  expect(applyFinding({ caption: "업계 1위 빵", hashtags: [] }, removal)?.caption).toBe(" 빵");
+});
+
+test("직접 고치기에서 해시태그 뒤에 띄어쓰기를 치고 새 태그를 이어 쓸 수 있다", async () => {
+  render(<CampaignApiProvider api={createMockCampaignApi({ delay: 0 })}><ReviewScreen campaignId="a" /></CampaignApiProvider>);
+  fireEvent.click(await screen.findByRole("button", { name: "직접 고치기" }));
+  const input = screen.getByLabelText(/해시태그/) as HTMLInputElement;
+  fireEvent.change(input, { target: { value: "#광고 " } });
+  expect(input.value).toBe("#광고 ");
+  fireEvent.change(input, { target: { value: "#광고 그래놀라" } });
+  fireEvent.click(screen.getByRole("button", { name: "고치기 마침" }));
+  expect(screen.getByText(/#광고 #그래놀라/)).toBeDefined();
+});
+

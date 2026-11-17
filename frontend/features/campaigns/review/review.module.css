@@ -25,4 +25,7 @@
 .suggestion { border-radius: 8px; background: #f7f7f7; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
 .suggestion span { font-size: 12px; font-weight: 700; color: #6b6b6b; letter-spacing: .04em; }
 .suggestion p { font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
+.swap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.swap del { color: #8a8a8a; }
+.swap ins { text-decoration: none; font-weight: 700; color: #217344; }
 @media (max-width: 767px) { .decision > span { flex-basis: 100%; } .decision > button { flex: 1 1 0; } }

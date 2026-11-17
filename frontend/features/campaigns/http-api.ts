@@ -16,7 +16,7 @@ const TO_UI: Record<ApiChannel, Channel> = { instagram: "인스타그램", x: "X
 const TO_API: Record<Channel, ApiChannel> = { 인스타그램: "instagram", X: "x", 틱톡: "tiktok" };
 
 type ApiDraft = { caption: string; hashtags: string[] };
-type ApiFinding = { channel: ApiChannel | "legacy"; start: number; end: number; quote: string; rule: RiskRule; reason: string; evidence_url: string | null; suggestion: string };
+type ApiFinding = { channel: ApiChannel | "legacy"; start: number; end: number; quote: string; rule: RiskRule; reason: string; evidence_url: string | null; suggestion: string; replacement?: string | null };
 export type CampaignOut = {
   id: number; owner_id: number; content: string;
   product_name: string | null; product_description: string | null; product_category: string | null; product_price: number | null;
@@ -114,7 +114,8 @@ function findings(out: CampaignOut): RiskFinding[] {
       id: `${channel}-${item.start}-${item.end}-${item.rule}`, channel: TO_UI[channel], rule: item.rule, ruleLabel: RULE_LABEL[item.rule],
       quote: item.quote, title: `“${item.quote}”`, reason: item.reason,
       source: item.evidence_url ? { title: SOURCE_TITLE[item.rule], url: item.evidence_url } : undefined,
-      suggestion: item.suggestion, replacement: item.suggestion, applied: false,
+      // suggestion은 고치는 방법 설명이라 문구에 넣지 않는다. 바로 넣을 대체 문구는 replacement로 따로 받는다.
+      suggestion: item.suggestion, replacement: item.replacement ?? undefined, applied: false,
     }];
   });
 }
