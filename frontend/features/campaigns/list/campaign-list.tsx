@@ -131,10 +131,11 @@ function CampaignTable({ items, column, empty = "이 조건에 맞는 캠페인�
           <td><Link href={campaignPath(item.id, item.status)}>{item.name}</Link></td>
           <td>{item.channels.join(" · ")}</td>
           <td><StatusBadge status={item.status} size="sm" /></td>
+          {/* data-label: 휴대폰에서 표를 카드로 바꿔 보여 줄 때 칸 이름으로 쓴다 */}
           {column === "next"
-            ? <td data-urgent={step.urgent ?? false}>{step.text}</td>
-            : <td>{item.status === "종료" ? <span data-urgent="true">성과 숫자 입력</span> : item.roas === null ? "계산할 수 없음" : `${item.roas.toLocaleString("ko-KR")}%`}</td>}
-          <td className={styles.time}><time dateTime={item.updatedAt}>{formatShortTime(item.updatedAt)}</time></td>
+            ? <td data-label="다음 할 일" data-urgent={step.urgent ?? false}>{step.text}</td>
+            : <td data-label="ROAS">{item.status === "종료" ? <span data-urgent="true">성과 숫자 입력</span> : item.roas === null ? "계산할 수 없음" : `${item.roas.toLocaleString("ko-KR")}%`}</td>}
+          <td data-label="최근 변경" className={styles.time}><time dateTime={item.updatedAt}>{formatShortTime(item.updatedAt)}</time></td>
         </tr>;
       })}</tbody>
     </table>
