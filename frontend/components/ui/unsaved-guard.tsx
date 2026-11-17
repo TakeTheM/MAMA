@@ -45,8 +45,8 @@ export function UnsavedGuard({ when, message }: { when: boolean; message: string
 
   if (!target) return null;
   return <div className={ui.overlay}>
-    <div className={ui.overlayPanel} aria-modal="true">
-      <ConfirmBox id="leave" title="고친 내용이 저장되지 않았어요" confirmLabel="저장하지 않고 나가기" onCancel={() => setTarget(null)}
+    <div className={ui.overlayPanel}>
+      <ConfirmBox id="leave" modal title="고친 내용이 저장되지 않았어요" confirmLabel="저장하지 않고 나가기" onCancel={() => setTarget(null)}
         onConfirm={() => { active.current = false; setTarget(null); router.push(target); }}>
         {message}
       </ConfirmBox>

@@ -150,3 +150,32 @@ test("다른 곳에서 요청한 검수가 진행 중이면 새로고침하지 �
   }
 });
 
+test("문구 속 경고 번호를 누르면 그 경고 카드로 옮겨 간다", async () => {
+  render(<CampaignApiProvider api={createMockCampaignApi({ delay: 0 })}><ReviewScreen campaignId="a" /></CampaignApiProvider>);
+  await screen.findByText("위험 표현 2개를 찾았어요");
+  fireEvent.click(screen.getByRole("button", { name: "경고 1 설명 보기" }));
+  const card = document.activeElement as HTMLElement;
+  expect(card.tagName).toBe("ARTICLE");
+  expect(card.textContent).toContain("이렇게 바꿔 보세요");
+});
+
+test("저장 안 하고 나가기 상자에서는 Tab 키가 상자 안에서만 돈다", async () => {
+  window.history.replaceState(null, "", "/campaigns/a/review");
+  render(<CampaignApiProvider api={createMockCampaignApi({ delay: 0 })}><ReviewScreen campaignId="a" /></CampaignApiProvider>);
+  await screen.findByText("위험 표현 2개를 찾았어요");
+  fireEvent.click(screen.getByRole("button", { name: "적용" }));
+  fireEvent.click(screen.getByRole("link", { name: "캠페인" }));
+  const dialog = screen.getByRole("alertdialog", { name: "고친 내용이 저장되지 않았어요" });
+  expect(dialog.getAttribute("aria-modal")).toBe("true");
+  const back = screen.getByRole("button", { name: "돌아가기" });
+  const leave = screen.getByRole("button", { name: "저장하지 않고 나가기" });
+  expect(document.activeElement).toBe(back);
+  leave.focus();
+  fireEvent.keyDown(leave, { key: "Tab" });
+  expect(document.activeElement).toBe(back);
+  fireEvent.keyDown(back, { key: "Tab", shiftKey: true });
+  expect(document.activeElement).toBe(leave);
+  fireEvent.keyDown(leave, { key: "Escape" });
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+});
+

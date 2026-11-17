@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import { AppShell } from "@/components/ui/app-shell";
+import { ConfirmBox } from "@/components/ui/confirm-box";
 import { Icon } from "@/components/ui/icon";
 import { UnsavedGuard } from "@/components/ui/unsaved-guard";
 import ui from "@/components/ui/ui.module.css";
@@ -150,13 +151,10 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
           {!confirmApprove && <button type="button" className={`${ui.secondary} ${ui.off}`} disabled={!canApprove || session.pending} aria-describedby="approve-hint" onClick={() => (open.length ? setConfirmApprove(true) : void approve())}>승인</button>}
           {(campaign.allowedActions.includes("request-review") || changed) && <button type="button" className={ui.primary} disabled={session.pending || !campaign.allowedActions.includes("request-review")} onClick={() => { setConfirmApprove(false); void rereview(); }}>{reviewing ? "검수 중…" : "다시 검수 요청"}</button>}
         </div>
-        {confirmApprove && <div className={ui.confirm} role="alertdialog" aria-labelledby="approve-title" aria-describedby="approve-desc">
-          <div><strong id="approve-title">경고 {open.length}개가 남아 있어요. 이대로 승인할까요?</strong><p id="approve-desc">승인한 계정과 시각이 상태 기록에 남아요. 위험 표현을 확인한 뒤 결정해 주세요.</p></div>
-          <div>
-            <button type="button" className={ui.ghost} disabled={session.pending} onClick={() => setConfirmApprove(false)}>돌아가기</button>
-            <button type="button" className={`${ui.primary} ${ui.small}`} disabled={session.pending} onClick={() => void approve()}>그대로 승인</button>
-          </div>
-        </div>}
+        {confirmApprove && <ConfirmBox id="approve" title={`경고 ${open.length}개가 남아 있어요. 이대로 승인할까요?`} confirmLabel="그대로 승인" pendingLabel="승인 중…" pending={session.pending}
+          onCancel={() => setConfirmApprove(false)} onConfirm={() => void approve()}>
+          승인한 계정과 시각이 상태 기록에 남아요. 위험 표현을 확인한 뒤 결정해 주세요.
+        </ConfirmBox>}
         {reviewing && <p role="status" className={ui.help}>AI가 문구를 다시 검수하고 있어요. 끝나면 이 화면에 결과가 바로 나와요.</p>}
         {localError && <p role="alert" className={ui.error}>{localError}</p>}
         <Feedback pending={session.pending} error={session.error} notice={session.notice} />
@@ -208,7 +206,7 @@ function Marked({ text, findings }: { text: string; findings: RiskFinding[] }) {
     parts.push(rest.slice(0, hit.at));
     parts.push(hit.fixed
       ? <ins key={key++} className={styles.fixed}><span>{hit.needle}</span><sup>{hit.no}</sup></ins>
-      : <mark key={key++}><span>{hit.needle}</span><sup>{hit.no}</sup></mark>);
+      : <mark key={key++}><span>{hit.needle}</span><sup><JumpToFinding id={hit.finding.id} no={hit.no} /></sup></mark>);
     rest = rest.slice(hit.at + hit.needle.length);
   }
   return <>{parts}</>;
@@ -227,8 +225,23 @@ function TagsInput({ tags, disabled, onChange }: { tags: string[]; disabled: boo
   return <input id="edit-tags" type="text" value={text} disabled={disabled} onChange={(event) => { setText(event.target.value); onChange(parseTags(event.target.value)); }} onBlur={() => setText(tags.join(" "))} />;
 }
 
+const cardId = (id: string) => `finding-card-${id}`;
+/**
+ * 문구 속 번호를 누르면 그 경고 카드로 옮겨 간다. 휴대폰에서는 카드가 문구 아래로 내려가서
+ * 번호만 보고 카드를 찾으려면 계속 스크롤해야 했다.
+ */
+function JumpToFinding({ id, no }: { id: string; no: number }) {
+  return <button type="button" className={styles.jump} aria-label={`경고 ${no} 설명 보기`} onClick={() => {
+    const card = document.getElementById(cardId(id));
+    if (!card) return;
+    const smooth = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    card.scrollIntoView?.({ behavior: smooth ? "smooth" : "auto", block: "center" });
+    card.focus({ preventScroll: true });
+  }}>{no}</button>;
+}
+
 function FindingCard({ finding, index, disabled, onApply }: { finding: RiskFinding; index: number; disabled: boolean; onApply: () => void }) {
-  return <article className={`${ui.card} ${styles.finding}`} data-applied={finding.applied} aria-labelledby={`finding-${finding.id}`}>
+  return <article id={cardId(finding.id)} tabIndex={-1} className={`${ui.card} ${styles.finding}`} data-applied={finding.applied} aria-labelledby={`finding-${finding.id}`}>
     <div className={styles.findingHead}><span className={styles.no}>{index}</span><span className={styles.rule}>{finding.rule} {finding.ruleLabel}</span>{finding.applied && <span className={styles.done}><Icon name="check" size={14} />적용됨</span>}</div>
     <h3 id={`finding-${finding.id}`}>{finding.title}</h3>
     <p className={styles.reason}>{finding.reason}</p>

@@ -63,29 +63,38 @@ function ScheduleForm({ campaign }: { campaign: Campaign }) {
   try { if (date && time) iso = fromSeoulInput(`${date}T${time}`); } catch { /* Invalid dates are validated by the adapter. */ }
   const difference = Date.parse(iso) - now;
   const nearReview = difference >= 0 && difference < 24 * 3600000;
-  const invalid = (field: string) => error?.field === field;
+  // 지난 시각은 저장 전에 바로 알려 준다(서버도 다시 확인한다).
+  const past = Boolean(iso) && difference < 0;
+  const invalid = (field: string) => error?.field === field || (field === "scheduledAt" && past);
+  const toNumber = (value: string) => { const plain = value.replace(/,/g, "").trim(); return plain ? Number(plain) : NaN; };
   return <form noValidate className={styles.stack} onSubmit={async (event) => {
     event.preventDefault();
-    const success = await mutate({ action: "schedule", schedule: { scheduledAt: iso, amount: amount.trim() ? Number(amount) : NaN, days: days.trim() ? Number(days) : NaN } });
+    if (past) return;
+    const success = await mutate({ action: "schedule", schedule: { scheduledAt: iso, amount: toNumber(amount), days: toNumber(days) } });
     if (success) router.push(recordsPath(campaign.id));
   }}>
     <section className={styles.card} aria-labelledby="when-title"><h2 id="when-title">언제 올릴까요?</h2>
       <fieldset disabled={pending} className={styles.inputGrid}>
-        <div><label htmlFor="scheduled-date">게시 예정일</label><input id="scheduled-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} aria-invalid={invalid("scheduledAt")} aria-describedby={`time-help${invalid("scheduledAt") ? " action-error" : ""}`} required /></div>
-        <div><label htmlFor="scheduled-time">시각</label><input id="scheduled-time" type="time" value={time} onChange={(event) => setTime(event.target.value)} aria-invalid={invalid("scheduledAt")} aria-describedby={`time-help${invalid("scheduledAt") ? " action-error" : ""}`} required /></div>
+        <div><label htmlFor="scheduled-date">게시 예정일</label><input id="scheduled-date" type="date" min={seoulToday(now)} value={date} onChange={(event) => setDate(event.target.value)} aria-invalid={invalid("scheduledAt")} aria-describedby={`time-help${past ? " past-error" : ""}${error?.field === "scheduledAt" ? " action-error" : ""}`} required /></div>
+        <div><label htmlFor="scheduled-time">시각</label><input id="scheduled-time" type="time" value={time} onChange={(event) => setTime(event.target.value)} aria-invalid={invalid("scheduledAt")} aria-describedby={`time-help${past ? " past-error" : ""}${error?.field === "scheduledAt" ? " action-error" : ""}`} required /></div>
       </fieldset>
       <p id="time-help" className={styles.help}>한국 시간(KST) 기준 · 모든 채널에 같은 시각을 적용합니다.</p>
+      {past && <p id="past-error" className={ui.fieldError}><Icon name="alert" size={16} />이미 지난 시각이에요. 지금 이후로 골라 주세요.</p>}
       {nearReview && <ReviewWarning />}
     </section>
     <section className={styles.card} aria-labelledby="budget-title"><div className={styles.cardTitle}><h2 id="budget-title">예산</h2><p className={styles.help}>기획할 때 넣은 예산을 불러왔어요</p></div>
       <fieldset disabled={pending} className={styles.inputGrid}>
-        <div><label htmlFor="budget-amount">금액 (원)</label><input id="budget-amount" type="number" min="0" step="any" value={amount} onChange={(event) => setAmount(event.target.value)} aria-invalid={invalid("amount")} aria-describedby={invalid("amount") ? "action-error" : undefined} required /></div>
-        <div><label htmlFor="budget-days">기간 (일)</label><input id="budget-days" type="number" min="1" step="1" value={days} onChange={(event) => setDays(event.target.value)} aria-invalid={invalid("days")} aria-describedby={invalid("days") ? "action-error" : undefined} required /></div>
+        <div><label htmlFor="budget-amount">금액 (원)</label><input id="budget-amount" type="text" inputMode="numeric" placeholder="예: 50,000" value={amount} onChange={(event) => setAmount(event.target.value)} aria-invalid={invalid("amount")} aria-describedby={invalid("amount") ? "action-error" : undefined} required /></div>
+        <div><label htmlFor="budget-days">기간 (일)</label><input id="budget-days" type="text" inputMode="numeric" placeholder="예: 7" value={days} onChange={(event) => setDays(event.target.value)} aria-invalid={invalid("days")} aria-describedby={invalid("days") ? "action-error" : undefined} required /></div>
       </fieldset>
     </section>
-    <div className={styles.saveRow}><p className={styles.help}>{MANUAL_NOTICE}</p><button className={styles.primary} type="submit" disabled={pending}>{pending ? "저장 중…" : "게시 예약"}</button></div>
+    <div className={styles.saveRow}><p className={styles.help}>{MANUAL_NOTICE}</p><button className={styles.primary} type="submit" disabled={pending || past}>{pending ? "저장 중…" : "게시 예약"}</button></div>
     <Feedback />
   </form>;
+}
+/** 한국 시간 기준 오늘 날짜(YYYY-MM-DD). 날짜 칸에서 지난 날을 고르지 못하게 한다. */
+function seoulToday(now: number) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 function ReviewWarning() {
   return <div className={styles.warning} role="status"><Icon name="clock" /><div><strong>{REVIEW_WARNING}</strong><p>저장은 할 수 있어요. 심사가 늦어질 수 있으니 플랫폼에서 진행 상황을 확인해 주세요.</p></div></div>;
@@ -107,9 +116,10 @@ function RecordsContent() {
   const { campaign, pending, error, warning, mutate } = usePublishingSession();
   const [reason, setReason] = useState("");
   // 게시함·종료는 누르면 시각이 기록되고 되돌릴 수 없어서 한 번 더 묻는다.
-  const [confirming, setConfirming] = useState<"publish" | "end" | null>(null);
+  const [confirming, setConfirming] = useState<"publish" | "end" | "reject" | null>(null);
   if (!campaign) return null;
   const record = async (action: "publish" | "end") => { if (await mutate({ action })) setConfirming(null); };
+  const recordReject = async () => { if (await mutate({ action: "reject", reason })) setConfirming(null); };
   const can = (action: "schedule" | "publish" | "end" | "reject" | "revise") => campaign.allowedActions.includes(action);
   return <div className={styles.columns}>
     <section className={styles.stack} aria-label="지금 할 일" aria-busy={pending}>
@@ -120,7 +130,15 @@ function RecordsContent() {
       {can("publish") && confirming === "publish" && <ConfirmBox id="publish" title="플랫폼에 올린 게 맞나요?" confirmLabel="게시함으로 기록" pendingLabel="기록 중…" pending={pending} onCancel={() => setConfirming(null)} onConfirm={() => void record("publish")}>
         지금 시각이 게시 시각으로 남고 ‘집행중’이 돼요. 기록한 뒤에는 되돌릴 수 없어요.
       </ConfirmBox>}
-      {can("reject") && <form className={styles.card} noValidate onSubmit={(event) => { event.preventDefault(); void mutate({ action: "reject", reason }); }}><div><h3>플랫폼에서 반려됐어요</h3><p>반려 사유를 남기면 ‘다시 고치기’ 후에도 함께 확인할 수 있어요.</p></div><div><label htmlFor="rejection-reason">반려 사유 <span className={styles.required}>(필수)</span></label><textarea id="rejection-reason" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="플랫폼이 알려 준 사유를 그대로 붙여 넣어 주세요" disabled={pending} aria-invalid={error?.field === "reason"} aria-describedby={error?.field === "reason" ? "action-error" : undefined} required /></div><div className={styles.alignRight}><button className={styles.secondary} disabled={pending}>반려 기록</button></div></form>}
+      {can("reject") && <form className={styles.card} noValidate onSubmit={(event) => {
+        event.preventDefault();
+        // 사유가 비었으면 바로 보내서 어느 칸이 틀렸는지 알려 주고, 채웠으면 한 번 더 묻는다.
+        if (reason.trim()) setConfirming("reject"); else void mutate({ action: "reject", reason });
+      }}><div><h3>플랫폼에서 반려됐어요</h3><p>반려 사유를 남기면 ‘다시 고치기’ 후에도 함께 확인할 수 있어요.</p></div><div><label htmlFor="rejection-reason">반려 사유 <span className={styles.required}>(필수)</span></label><textarea id="rejection-reason" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="플랫폼이 알려 준 사유를 그대로 붙여 넣어 주세요" disabled={pending} aria-invalid={error?.field === "reason"} aria-describedby={error?.field === "reason" ? "action-error" : undefined} required /></div>{confirming === "reject"
+        ? <ConfirmBox id="reject" title="플랫폼 반려로 기록할까요?" confirmLabel="반려로 기록" pendingLabel="기록 중…" pending={pending} onCancel={() => setConfirming(null)} onConfirm={() => void recordReject()}>
+          ‘플랫폼 반려’가 되고 게시 예약으로 돌아갈 수 없어요. 문구를 고친 뒤 다시 검수를 받아야 해요.
+        </ConfirmBox>
+        : <div className={styles.alignRight}><button className={styles.secondary} disabled={pending}>반려 기록</button></div>}</form>}
       {can("publish") && <div className={styles.dashed}><Icon name="info" /><p>‘집행중’이 되면 종료 버튼이 나와요. 플랫폼에서 광고가 끝난 뒤 눌러서 기록해 주세요.</p></div>}
       {can("end") && <section className={`${styles.card} ${styles.featured}`}><h3>광고가 끝났어요</h3><p>플랫폼에서 광고를 종료한 뒤 기록해 주세요. 기간이 지나도 자동 종료되지 않습니다.</p>{confirming === "end"
         ? <ConfirmBox id="end" title="광고를 종료로 기록할까요?" confirmLabel="종료로 기록" pendingLabel="기록 중…" pending={pending} onCancel={() => setConfirming(null)} onConfirm={() => void record("end")}>

@@ -104,6 +104,9 @@ test("반려 입력은 항상 펼쳐지며 수정 요청에도 사유가 유지�
   expect(reason.getAttribute("aria-invalid")).toBe("true");
   fireEvent.change(reason, { target: { value: "상품 페이지 확인 필요" } });
   fireEvent.click(screen.getByRole("button", { name: "반려 기록" }));
+  // 사유를 채우면 기록 전에 한 번 더 묻는다.
+  expect(screen.getByRole("alertdialog", { name: "플랫폼 반려로 기록할까요?" })).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "반려로 기록" }));
   fireEvent.click(await screen.findByRole("button", { name: "다시 고치기" }));
   expect((await screen.findByRole("link", { name: "문구 고치러 가기" })).getAttribute("href")).toBe("/campaigns/demo/review");
   expect(screen.getAllByText("상품 페이지 확인 필요")).toHaveLength(2);
@@ -161,4 +164,21 @@ test("게시 예약됨에서는 확인 후 캠페인을 취소하고 이후 기�
   expect(await screen.findByText(/취소된 캠페인입니다/)).toBeDefined();
   expect(screen.queryByRole("button", { name: "게시함" })).toBeNull();
   expect(screen.queryByRole("button", { name: "캠페인 취소" })).toBeNull();
+});
+
+test("금액에 쉼표를 써도 저장하고, 지난 시각은 저장 전에 막는다", async () => {
+  const adapter = createMockAdapter({ delay: 0 });
+  const mutate = vi.spyOn(adapter, "mutate");
+  render(<Harness adapter={adapter} />);
+  const amount = await screen.findByLabelText("금액 (원)") as HTMLInputElement;
+  expect((screen.getByLabelText("게시 예정일") as HTMLInputElement).min).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  fillPlan(-2);
+  expect(screen.getByText("이미 지난 시각이에요. 지금 이후로 골라 주세요.")).toBeDefined();
+  expect(screen.getByLabelText("시각").getAttribute("aria-invalid")).toBe("true");
+  expect((screen.getByRole("button", { name: "게시 예약" }) as HTMLButtonElement).disabled).toBe(true);
+  fillPlan(48);
+  fireEvent.change(amount, { target: { value: "50,000" } });
+  fireEvent.click(screen.getByRole("button", { name: "게시 예약" }));
+  await waitFor(() => expect(push).toHaveBeenCalledOnce());
+  expect(mutate.mock.calls[0][1]).toMatchObject({ action: "schedule", schedule: { amount: 50000 } });
 });
