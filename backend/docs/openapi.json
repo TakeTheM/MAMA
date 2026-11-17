@@ -1839,6 +1839,18 @@
             "maxLength": 10000,
             "minLength": 1,
             "title": "Suggestion"
+          },
+          "replacement": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replacement"
           }
         },
         "additionalProperties": false,

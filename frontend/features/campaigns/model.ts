@@ -21,9 +21,12 @@ export type RiskFinding = {
   title: string; reason: string;
   /** 팀이 확인한 근거 자료. 목록에 없는 링크면 비어 있다 */
   source?: { title: string; url: string };
-  /** 고쳐 쓴 표현 (위험 표현 자리에 넣을 말) */
+  /** 어떻게 고치면 좋은지 설명 (문구에 그대로 넣지 않는다) */
   suggestion: string;
-  /** 위험 표현 자리에 넣을 말. 적용하면 이 표현만 바꾼다. 없으면(R1 표시 누락) #광고를 붙인다 */
+  /**
+   * 위험 표현 자리에 그대로 넣을 말. 적용하면 이 표현만 바꾼다('' 이면 지운다).
+   * 없으면 자동으로 바꿀 수 없어서 직접 고쳐야 한다. 단 R1(광고 표시 누락)은 #광고를 붙인다.
+   */
   replacement?: string;
   applied: boolean;
 };

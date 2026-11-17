@@ -14,7 +14,7 @@ function campaignOut(overrides: Partial<CampaignOut> = {}): CampaignOut {
     initial_budget_amount: 70000, initial_budget_days: 7, scheduled_at: null, budget_amount: null, budget_days: null,
     published_at: null, ended_at: null, created_at: "2026-11-01T00:00:00Z", updated_at: "2026-11-02T00:00:00Z",
     allowed_actions: ["approve", "request-review"], warnings: [], rejection_reason: null,
-    review: { status: "passed", findings: [{ channel: "instagram", start: 0, end: 6, quote: "100% 효과", rule: "R3", reason: "효과를 단정하는 표현입니다.", evidence_url: "https://www.law.go.kr/법령/표시ㆍ광고의공정화에관한법률/제3조", suggestion: "꼼꼼하게 만든" }] },
+    review: { status: "passed", findings: [{ channel: "instagram", start: 0, end: 6, quote: "100% 효과", rule: "R3", reason: "효과를 단정하는 표현입니다.", evidence_url: "https://www.law.go.kr/법령/표시ㆍ광고의공정화에관한법률/제3조", suggestion: "효과를 단정하지 말고 확인할 수 있는 특징을 써 주세요", replacement: "꼼꼼하게 만든" }] },
     ...overrides,
   };
 }
@@ -42,7 +42,7 @@ test("응답을 화면 모델로 옮긴다: 채널 이름, 경고, 승인 가능
   });
   expect(campaign.plan.channels).toEqual(["인스타그램", "X"]);
   expect(campaign.drafts.인스타그램?.caption).toBe("100% 효과 그래놀라");
-  expect(campaign.findings[0]).toMatchObject({ channel: "인스타그램", rule: "R3", ruleLabel: "거짓·과장", quote: "100% 효과", replacement: "꼼꼼하게 만든" });
+  expect(campaign.findings[0]).toMatchObject({ channel: "인스타그램", rule: "R3", ruleLabel: "거짓·과장", quote: "100% 효과", replacement: "꼼꼼하게 만든", suggestion: "효과를 단정하지 말고 확인할 수 있는 특징을 써 주세요" });
   expect(campaign.canApprove).toBe(true);
   expect(campaign.allowedActions).toEqual(expect.arrayContaining(["approve", "request-review"]));
   expect(campaign.history).toEqual([{ from: "기획중", to: "초안 생성됨", at: "2026-11-01T01:00:00Z", actor: "사장님" }]);

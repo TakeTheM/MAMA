@@ -30,13 +30,19 @@ export function ReviewScreen({ campaignId }: { campaignId: string }) {
 
 type Session = ReturnType<typeof useCampaign>;
 
+/** 버튼 한 번으로 고칠 수 있는 경고인가 (바꿀 문구가 있거나, 광고 표시 누락이라 #광고를 붙이면 되는 경우) */
+export function canApply(finding: RiskFinding) {
+  return (Boolean(finding.quote) && finding.replacement !== undefined) || finding.rule === "R1";
+}
+
 /**
  * 제안 하나를 문구에 넣는다. 위험 표현 자리만 바꿔서 앞서 고친 내용은 그대로 둔다.
- * 표현을 찾을 수 없으면(이미 고친 경우) null.
+ * 바꿀 수 없거나 표현을 찾을 수 없으면(이미 고친 경우) null.
  */
 export function applyFinding(copy: ChannelCopy, finding: RiskFinding): ChannelCopy | null {
   if (!finding.quote || finding.replacement === undefined) {
-    // 광고 표시 누락(R1)처럼 바꿀 자리가 없는 경고는 #광고를 맨 앞에 붙인다.
+    if (finding.rule !== "R1") return null;
+    // 광고 표시 누락(R1)은 #광고를 맨 앞에 붙인다.
     return { ...copy, hashtags: ["#광고", ...copy.hashtags.filter((tag) => tag !== "#광고")] };
   }
   if (copy.caption.includes(finding.quote)) return { ...copy, caption: copy.caption.replace(finding.quote, finding.replacement) };
@@ -97,7 +103,8 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
   }
 
   return <>
-    <ResultBanner campaign={campaign} openCount={open.length} changed={changed} />
+    {/* 안내 띠는 서버 검수 결과만 보여 준다. 제안을 적용할 때마다 띠가 바뀌면 화면이 새로 불러와진 것처럼 보여서, 고친 상태는 아래 승인 줄에서만 알린다. */}
+    <ResultBanner campaign={campaign} openCount={campaign.findings.filter((finding) => !finding.applied).length} />
     <div className={`${ui.columns} ${ui.columnsWide}`}>
       <section aria-label="검수한 문구" className={ui.stack} aria-busy={session.pending}>
         <div role="tablist" aria-label="채널" className={ui.tabs}>
@@ -112,7 +119,7 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
         <div id="review-panel" role="tabpanel" aria-labelledby={`review-tab-${active}`} className={ui.card}>
           {editing ? <>
             <div><label htmlFor="edit-caption">캡션</label><textarea id="edit-caption" rows={6} value={copy.caption} disabled={session.pending} onChange={(event) => setDrafts({ ...drafts, [active]: { ...copy, caption: event.target.value } })} /></div>
-            <div><label htmlFor="edit-tags">해시태그 <span className={ui.optional}>(띄어쓰기로 구분)</span></label><input id="edit-tags" type="text" value={copy.hashtags.join(" ")} disabled={session.pending} onChange={(event) => setDrafts({ ...drafts, [active]: { ...copy, hashtags: event.target.value.split(/\s+/).filter(Boolean).map((tag) => (tag.startsWith("#") ? tag : `#${tag}`)) } })} /></div>
+            <div><label htmlFor="edit-tags">해시태그 <span className={ui.optional}>(띄어쓰기로 구분)</span></label><TagsInput key={active} tags={copy.hashtags} disabled={session.pending} onChange={(hashtags) => setDrafts({ ...drafts, [active]: { ...copy, hashtags } })} /></div>
             <div className={ui.actions}><button type="button" className={`${ui.secondary} ${ui.small}`} onClick={() => setEditing(false)}>고치기 마침</button></div>
           </> : <>
             <span className={styles.caption}>캡션</span>
@@ -123,7 +130,9 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
         </div>
 
         <div className={styles.decision}>
-          <span id="approve-hint" className={ui.help}>{approveHint(campaign, canApprove, open.length, changed)}</span>
+          {changed
+            ? <span id="approve-hint" className={ui.help} aria-live="polite"><strong>고친 문구로 다시 검수를 요청해 주세요</strong> 고친 내용은 아직 저장 전이에요. ‘다시 검수 요청’을 누르면 저장하고 검수해요.</span>
+            : <span id="approve-hint" className={ui.help}>{approveHint(campaign, canApprove, open.length)}</span>}
           {!confirmApprove && <button type="button" className={`${ui.secondary} ${ui.off}`} disabled={!canApprove || session.pending} aria-describedby="approve-hint" onClick={() => (open.length ? setConfirmApprove(true) : void approve())}>승인</button>}
           {(campaign.allowedActions.includes("request-review") || changed) && <button type="button" className={ui.primary} disabled={session.pending || !campaign.allowedActions.includes("request-review")} onClick={() => { setConfirmApprove(false); void rereview(); }}>{session.pending ? "요청 중…" : "다시 검수 요청"}</button>}
         </div>
@@ -146,8 +155,7 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
   </>;
 }
 
-function ResultBanner({ campaign, openCount, changed }: { campaign: Campaign; openCount: number; changed: boolean }) {
-  if (changed) return <Banner tone="alert" title="고친 문구로 다시 검수를 요청해 주세요"><span>고친 내용은 아직 저장되지 않았어요. ‘다시 검수 요청’을 누르면 고친 문구로 저장하고 검수해요.</span></Banner>;
+function ResultBanner({ campaign, openCount }: { campaign: Campaign; openCount: number }) {
   if (campaign.reviewPending) return <Banner tone="alert" title="검수하고 있어요"><span>잠시 뒤 새로고침해 주세요.</span></Banner>;
   if (campaign.rejectionReason && campaign.status === "수정 요청") {
     return <Banner tone="alert" title="플랫폼에서 반려된 광고예요">
@@ -163,8 +171,7 @@ function ResultBanner({ campaign, openCount, changed }: { campaign: Campaign; op
   if (campaign.canApprove) return <Banner tone="ok" title="위험 표현이 없어요"><span>문구를 한 번 더 확인하고 ‘승인’을 눌러 주세요. AI 검수만으로는 승인되지 않아요.</span></Banner>;
   return <Banner tone="alert" title="검수 결과를 기다리고 있어요"><span>잠시 뒤 새로고침해 주세요.</span></Banner>;
 }
-function approveHint(campaign: Campaign, canApprove: boolean, openCount: number, changed: boolean) {
-  if (changed) return "고친 문구로 다시 검수해야 승인할 수 있어요";
+function approveHint(campaign: Campaign, canApprove: boolean, openCount: number) {
   if (canApprove) return openCount ? `경고 ${openCount}개를 확인했다면 그대로 승인할 수 있어요` : "위험 표현이 없어요. 문구를 확인하고 승인해 주세요.";
   if (campaign.reviewError) return "검수를 마쳐야 승인할 수 있어요";
   return "고친 문구로 다시 검수해야 승인할 수 있어요";
@@ -173,21 +180,36 @@ function Banner({ tone, title, children }: { tone: "alert" | "ok"; title: string
   return <div role="status" className={tone === "ok" ? ui.okBox : ui.alertBox}><Icon name={tone === "ok" ? "check" : "warning"} size={22} /><div><strong>{title}</strong>{children}</div></div>;
 }
 
-/** 캡션 안의 위험 표현을 찾아 번호와 함께 강조한다 */
+/** 캡션 안의 위험 표현을 찾아 번호와 함께 강조하고, 제안을 적용한 자리는 바뀐 문구를 초록 밑줄로 보여 준다 */
 function Marked({ text, findings }: { text: string; findings: RiskFinding[] }) {
-  const marks = findings.map((finding, index) => ({ finding, no: index + 1 })).filter(({ finding }) => finding.quote && !finding.applied);
+  const marks = findings.map((finding, index) => ({ finding, no: index + 1, fixed: finding.applied, needle: finding.applied ? finding.replacement : finding.quote }))
+    .filter((mark): mark is typeof mark & { needle: string } => Boolean(mark.needle));
   const parts: ReactNode[] = [];
   let rest = text;
   let key = 0;
   while (rest) {
-    const hit = marks.map((mark) => ({ ...mark, at: rest.indexOf(mark.finding.quote as string) })).filter((mark) => mark.at >= 0).sort((x, y) => x.at - y.at)[0];
+    const hit = marks.map((mark) => ({ ...mark, at: rest.indexOf(mark.needle) })).filter((mark) => mark.at >= 0).sort((x, y) => x.at - y.at)[0];
     if (!hit) { parts.push(rest); break; }
-    const quote = hit.finding.quote as string;
     parts.push(rest.slice(0, hit.at));
-    parts.push(<mark key={key++}><span>{quote}</span><sup>{hit.no}</sup></mark>);
-    rest = rest.slice(hit.at + quote.length);
+    parts.push(hit.fixed
+      ? <ins key={key++} className={styles.fixed}><span>{hit.needle}</span><sup>{hit.no}</sup></ins>
+      : <mark key={key++}><span>{hit.needle}</span><sup>{hit.no}</sup></mark>);
+    rest = rest.slice(hit.at + hit.needle.length);
   }
   return <>{parts}</>;
+}
+
+const parseTags = (text: string) => text.split(/\s+/).filter(Boolean).map((tag) => (tag.startsWith("#") ? tag : `#${tag}`));
+
+/**
+ * 해시태그를 한 줄로 고치는 입력칸. 입력한 글자(띄어쓰기 포함)는 그대로 두고 태그 목록만 바꿔 알린다.
+ * 매번 태그를 다시 합쳐서 보여 주면 띄어쓰기가 지워져 새 태그를 쓸 수 없다.
+ */
+function TagsInput({ tags, disabled, onChange }: { tags: string[]; disabled: boolean; onChange: (tags: string[]) => void }) {
+  const [text, setText] = useState(() => tags.join(" "));
+  // 밖에서 태그가 바뀌면(제안 적용 등) 입력칸도 맞춘다.
+  if (parseTags(text).join(" ") !== tags.join(" ")) setText(tags.join(" "));
+  return <input id="edit-tags" type="text" value={text} disabled={disabled} onChange={(event) => { setText(event.target.value); onChange(parseTags(event.target.value)); }} onBlur={() => setText(tags.join(" "))} />;
 }
 
 function FindingCard({ finding, index, disabled, onApply }: { finding: RiskFinding; index: number; disabled: boolean; onApply: () => void }) {
@@ -196,7 +218,13 @@ function FindingCard({ finding, index, disabled, onApply }: { finding: RiskFindi
     <h3 id={`finding-${finding.id}`}>{finding.title}</h3>
     <p className={styles.reason}>{finding.reason}</p>
     {finding.source && <a className={styles.source} href={finding.source.url} target="_blank" rel="noopener noreferrer"><Icon name="link" size={16} />근거 자료: {finding.source.title}<span className={ui.srOnly}> (새 창)</span></a>}
-    <div className={styles.suggestion}><span>이렇게 바꿔 보세요</span><p>{finding.suggestion}</p></div>
-    <div className={ui.alignRight}><button type="button" className={`${ui.primary} ${ui.small}`} disabled={disabled || finding.applied} onClick={onApply}>{finding.applied ? "적용됨" : "적용"}</button></div>
+    <div className={styles.suggestion}>
+      <span>이렇게 바꿔 보세요</span>
+      {finding.quote && finding.replacement !== undefined && <p className={styles.swap}><del>{finding.quote}</del><span aria-hidden="true">→</span><ins>{finding.replacement || "(지우기)"}</ins></p>}
+      {finding.suggestion !== finding.replacement && <p>{finding.suggestion}</p>}
+    </div>
+    {canApply(finding)
+      ? <div className={ui.alignRight}><button type="button" className={`${ui.primary} ${ui.small}`} disabled={disabled || finding.applied} onClick={onApply}>{finding.applied ? "적용됨" : finding.quote && finding.replacement !== undefined ? "적용" : "#광고 붙이기"}</button></div>
+      : !finding.applied && <p className={ui.help}>자동으로 바꿀 문구가 없어요. ‘직접 고치기’로 고쳐 주세요.</p>}
   </article>;
 }

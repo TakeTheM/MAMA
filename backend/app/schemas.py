@@ -175,6 +175,8 @@ class ReviewFinding(InputModel):
     reason: Content
     evidence_url: str | None = None
     suggestion: Content
+    # quote 자리에 그대로 넣을 대체 문구. 빈 문자열은 quote를 지우라는 뜻, None은 자동으로 바꿀 문구가 없다는 뜻이다.
+    replacement: str | None = Field(default=None, max_length=500)
 
     @field_validator("reason", "suggestion")
     @classmethod
