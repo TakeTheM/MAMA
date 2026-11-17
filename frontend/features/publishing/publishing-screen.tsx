@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { AppShell, DemoNotice } from "@/components/ui/app-shell";
 import { CampaignHeading as SharedHeading } from "@/components/ui/campaign-heading";
+import { ConfirmBox } from "@/components/ui/confirm-box";
 import { Icon } from "@/components/ui/icon";
 import { LoadGate } from "@/components/ui/load-gate";
 import { canceledFrom, money } from "@/lib/campaign-status";
+import { numberFormatError, parseNumberInput } from "@/lib/number-input";
 import ui from "@/components/ui/ui.module.css";
 import { type Campaign, REVIEW_WARNING, formatTime, fromSeoulInput } from "./model";
 import { SCENARIOS, type Scenario } from "./mock-adapter";
@@ -62,38 +64,58 @@ function ScheduleForm({ campaign }: { campaign: Campaign }) {
   try { if (date && time) iso = fromSeoulInput(`${date}T${time}`); } catch { /* Invalid dates are validated by the adapter. */ }
   const difference = Date.parse(iso) - now;
   const nearReview = difference >= 0 && difference < 24 * 3600000;
-  const invalid = (field: string) => error?.field === field;
+  // 지난 시각은 저장 전에 바로 알려 준다(서버도 다시 확인한다).
+  const past = Boolean(iso) && difference < 0;
+  // 쉼표 위치가 틀린 금액·기간(50,00 / 1,5)은 다른 숫자로 저장되지 않게 저장 전에 막는다.
+  const formatError = { amount: numberFormatError(amount), days: numberFormatError(days) };
+  const invalid = (field: string) => error?.field === field || (field === "scheduledAt" && past) || Boolean(formatError[field as keyof typeof formatError]);
+  const describe = (field: "amount" | "days") => [formatError[field] ? `${field}-format` : "", error?.field === field ? "action-error" : ""].filter(Boolean).join(" ") || undefined;
+  const blocked = past || Boolean(formatError.amount || formatError.days);
+  const toNumber = (value: string) => parseNumberInput(value) ?? NaN;
   return <form noValidate className={styles.stack} onSubmit={async (event) => {
     event.preventDefault();
-    const success = await mutate({ action: "schedule", schedule: { scheduledAt: iso, amount: amount.trim() ? Number(amount) : NaN, days: days.trim() ? Number(days) : NaN } });
+    if (blocked) return;
+    const success = await mutate({ action: "schedule", schedule: { scheduledAt: iso, amount: toNumber(amount), days: toNumber(days) } });
     if (success) router.push(recordsPath(campaign.id));
   }}>
     <section className={styles.card} aria-labelledby="when-title"><h2 id="when-title">언제 올릴까요?</h2>
       <fieldset disabled={pending} className={styles.inputGrid}>
-        <div><label htmlFor="scheduled-date">게시 예정일</label><input id="scheduled-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} aria-invalid={invalid("scheduledAt")} aria-describedby={`time-help${invalid("scheduledAt") ? " action-error" : ""}`} required /></div>
-        <div><label htmlFor="scheduled-time">시각</label><input id="scheduled-time" type="time" value={time} onChange={(event) => setTime(event.target.value)} aria-invalid={invalid("scheduledAt")} aria-describedby={`time-help${invalid("scheduledAt") ? " action-error" : ""}`} required /></div>
+        <div><label htmlFor="scheduled-date">게시 예정일</label><input id="scheduled-date" type="date" min={seoulToday(now)} value={date} onChange={(event) => setDate(event.target.value)} aria-invalid={invalid("scheduledAt")} aria-describedby={`time-help${past ? " past-error" : ""}${error?.field === "scheduledAt" ? " action-error" : ""}`} required /></div>
+        <div><label htmlFor="scheduled-time">시각</label><input id="scheduled-time" type="time" value={time} onChange={(event) => setTime(event.target.value)} aria-invalid={invalid("scheduledAt")} aria-describedby={`time-help${past ? " past-error" : ""}${error?.field === "scheduledAt" ? " action-error" : ""}`} required /></div>
       </fieldset>
       <p id="time-help" className={styles.help}>한국 시간(KST) 기준 · 모든 채널에 같은 시각을 적용합니다.</p>
+      {past && <p id="past-error" className={ui.fieldError}><Icon name="alert" size={16} />이미 지난 시각이에요. 지금 이후로 골라 주세요.</p>}
       {nearReview && <ReviewWarning />}
     </section>
     <section className={styles.card} aria-labelledby="budget-title"><div className={styles.cardTitle}><h2 id="budget-title">예산</h2><p className={styles.help}>기획할 때 넣은 예산을 불러왔어요</p></div>
       <fieldset disabled={pending} className={styles.inputGrid}>
-        <div><label htmlFor="budget-amount">금액 (원)</label><input id="budget-amount" type="number" min="0" step="any" value={amount} onChange={(event) => setAmount(event.target.value)} aria-invalid={invalid("amount")} aria-describedby={invalid("amount") ? "action-error" : undefined} required /></div>
-        <div><label htmlFor="budget-days">기간 (일)</label><input id="budget-days" type="number" min="1" step="1" value={days} onChange={(event) => setDays(event.target.value)} aria-invalid={invalid("days")} aria-describedby={invalid("days") ? "action-error" : undefined} required /></div>
+        <div><label htmlFor="budget-amount">금액 (원)</label><input id="budget-amount" type="text" inputMode="numeric" placeholder="예: 50,000" value={amount} onChange={(event) => setAmount(event.target.value)} aria-invalid={invalid("amount")} aria-describedby={describe("amount")} required />
+          {formatError.amount && <p id="amount-format" className={ui.fieldError}><Icon name="alert" size={16} />{formatError.amount}</p>}</div>
+        <div><label htmlFor="budget-days">기간 (일)</label><input id="budget-days" type="text" inputMode="numeric" placeholder="예: 7" value={days} onChange={(event) => setDays(event.target.value)} aria-invalid={invalid("days")} aria-describedby={describe("days")} required />
+          {formatError.days && <p id="days-format" className={ui.fieldError}><Icon name="alert" size={16} />{formatError.days}</p>}</div>
       </fieldset>
     </section>
-    <div className={styles.saveRow}><p className={styles.help}>{MANUAL_NOTICE}</p><button className={styles.primary} type="submit" disabled={pending}>{pending ? "저장 중…" : "게시 예약"}</button></div>
+    <div className={styles.saveRow}><p className={styles.help}>{MANUAL_NOTICE}</p><button className={styles.primary} type="submit" disabled={pending || blocked}>{pending ? "저장 중…" : "게시 예약"}</button></div>
     <Feedback />
   </form>;
+}
+/** 한국 시간 기준 오늘 날짜(YYYY-MM-DD). 날짜 칸에서 지난 날을 고르지 못하게 한다. */
+function seoulToday(now: number) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 function ReviewWarning() {
   return <div className={styles.warning} role="status"><Icon name="clock" /><div><strong>{REVIEW_WARNING}</strong><p>저장은 할 수 있어요. 심사가 늦어질 수 있으니 플랫폼에서 진행 상황을 확인해 주세요.</p></div></div>;
 }
 function ApprovalPanel({ campaign }: { campaign: Campaign }) {
   const approval = [...campaign.history].reverse().find((entry) => entry.to === "승인됨");
-  return <aside className={styles.stack} aria-label="승인 정보"><section className={styles.card}><h2>승인된 문구</h2>{campaign.copies?.length ? campaign.copies.map((copy) => <div key={copy.channel} className={styles.approvedCopy}><strong>{copy.channel}</strong><p>{copy.caption}</p><p className={styles.help}>{copy.hashtags.join(" ")}</p></div>) : <div className={styles.approvedCopy}><strong>{campaign.channels.join(", ")}</strong><p>{campaign.caption}</p><p className={styles.help}>{campaign.hashtags.join(" ")}</p></div>}</section>
+  return <aside className={styles.stack} aria-label="승인 정보"><section className={styles.card}><h2>승인된 문구</h2><ApprovedCopies campaign={campaign} /></section>
     {approval && <div className={styles.approval}><Icon name="check" /><span>{actorName(approval.actor)} · {formatTime(approval.at)} 승인</span></div>}
   </aside>;
+}
+/** 승인된 문구를 채널별로 보여 준다 (채널별 문구가 없던 예전 캠페인은 한 덩어리로) */
+function ApprovedCopies({ campaign }: { campaign: Campaign }) {
+  const copies = campaign.copies?.length ? campaign.copies : [{ channel: campaign.channels.join(", "), caption: campaign.caption, hashtags: campaign.hashtags }];
+  return <div className={styles.copyList}>{copies.map((copy) => <div key={copy.channel} className={styles.approvedCopy}><strong>{copy.channel}</strong><p>{copy.caption}</p><p className={styles.help}>{copy.hashtags.join(" ")}</p></div>)}</div>;
 }
 function PlanFacts({ campaign }: { campaign: Campaign }) {
   return <dl className={styles.facts}><div><dt>게시 예정 시각</dt><dd>{formatTime(campaign.schedule?.scheduledAt)}</dd></div><div><dt>총 예산</dt><dd>{money(campaign.schedule?.amount ?? campaign.initialBudget.amount)}</dd></div><div><dt>기간</dt><dd>{campaign.schedule?.days ?? campaign.initialBudget.days}일</dd></div></dl>;
@@ -105,24 +127,49 @@ export function RecordsScreen() {
 function RecordsContent() {
   const { campaign, pending, error, warning, mutate } = usePublishingSession();
   const [reason, setReason] = useState("");
+  // 게시함·종료는 누르면 시각이 기록되고 되돌릴 수 없어서 한 번 더 묻는다.
+  const [confirming, setConfirming] = useState<"publish" | "end" | "reject" | null>(null);
   if (!campaign) return null;
+  const record = async (action: "publish" | "end") => { if (await mutate({ action })) setConfirming(null); };
+  const recordReject = async () => { if (await mutate({ action: "reject", reason })) setConfirming(null); };
   const can = (action: "schedule" | "publish" | "end" | "reject" | "revise") => campaign.allowedActions.includes(action);
   return <div className={styles.columns}>
     <section className={styles.stack} aria-label="지금 할 일" aria-busy={pending}>
       <div className={styles.recordIntro}><h2>{can("publish") ? "플랫폼에 올리셨나요?" : "게시·종료 기록"}</h2><p>예약 시각: {formatTime(campaign.schedule?.scheduledAt)} · {campaign.channels.join(", ")}</p></div>
       {warning && <ReviewWarning />}
       {can("schedule") && <section className={styles.card}><h2>게시 계획을 먼저 정해 주세요</h2><p className={styles.help}>게시 예정 시각과 예산을 저장한 뒤 게시함·반려를 기록할 수 있습니다.</p><Link className={styles.primary} href={schedulePath(campaign.id)}>게시 시각·예산 정하기</Link></section>}
-      {can("publish") && <section className={`${styles.card} ${styles.featured} ${styles.publishCard}`}><div><h3>올렸어요</h3><p>누른 시각이 게시 시각으로 기록되고 ‘집행중’이 돼요.</p></div><button className={styles.primary} disabled={pending} onClick={() => void mutate({ action: "publish" })}>게시함</button></section>}
-      {can("reject") && <form className={styles.card} noValidate onSubmit={(event) => { event.preventDefault(); void mutate({ action: "reject", reason }); }}><div><h3>플랫폼에서 반려됐어요</h3><p>반려 사유를 남기면 ‘다시 고치기’ 후에도 함께 확인할 수 있어요.</p></div><div><label htmlFor="rejection-reason">반려 사유 <span className={styles.optional}>(필수)</span></label><textarea id="rejection-reason" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="플랫폼이 알려 준 사유를 그대로 붙여 넣어 주세요" disabled={pending} aria-invalid={error?.field === "reason"} aria-describedby={error?.field === "reason" ? "action-error" : undefined} required /></div><div className={styles.alignRight}><button className={styles.secondary} disabled={pending}>반려 기록</button></div></form>}
+      {can("publish") && <section className={`${styles.card} ${styles.featured} ${styles.publishCard}`}><div><h3>올렸어요</h3><p>누른 시각이 게시 시각으로 기록되고 ‘집행중’이 돼요.</p></div>{confirming !== "publish" && <button className={styles.primary} disabled={pending} onClick={() => setConfirming("publish")}>게시함</button>}</section>}
+      {can("publish") && confirming === "publish" && <ConfirmBox id="publish" title="플랫폼에 올린 게 맞나요?" confirmLabel="게시함으로 기록" pendingLabel="기록 중…" pending={pending} onCancel={() => setConfirming(null)} onConfirm={() => void record("publish")}>
+        지금 시각이 게시 시각으로 남고 ‘집행중’이 돼요. 기록한 뒤에는 되돌릴 수 없어요.
+      </ConfirmBox>}
+      {can("reject") && <form className={styles.card} noValidate onSubmit={(event) => {
+        event.preventDefault();
+        // 사유가 비었으면 바로 보내서 어느 칸이 틀렸는지 알려 주고, 채웠으면 한 번 더 묻는다.
+        if (reason.trim()) setConfirming("reject"); else void mutate({ action: "reject", reason });
+      }}><div><h3>플랫폼에서 반려됐어요</h3><p>반려 사유를 남기면 ‘다시 고치기’ 후에도 함께 확인할 수 있어요.</p></div><div><label htmlFor="rejection-reason">반려 사유 <span className={styles.required}>(필수)</span></label><textarea id="rejection-reason" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="플랫폼이 알려 준 사유를 그대로 붙여 넣어 주세요" disabled={pending} aria-invalid={error?.field === "reason"} aria-describedby={error?.field === "reason" ? "action-error" : undefined} required /></div>{confirming === "reject"
+        ? <ConfirmBox id="reject" title="플랫폼 반려로 기록할까요?" confirmLabel="반려로 기록" pendingLabel="기록 중…" pending={pending} onCancel={() => setConfirming(null)} onConfirm={() => void recordReject()}>
+          ‘플랫폼 반려’가 되고 게시 예약으로 돌아갈 수 없어요. 문구를 고친 뒤 다시 검수를 받아야 해요.
+        </ConfirmBox>
+        : <div className={styles.alignRight}><button className={styles.secondary} disabled={pending}>반려 기록</button></div>}</form>}
       {can("publish") && <div className={styles.dashed}><Icon name="info" /><p>‘집행중’이 되면 종료 버튼이 나와요. 플랫폼에서 광고가 끝난 뒤 눌러서 기록해 주세요.</p></div>}
-      {can("end") && <section className={`${styles.card} ${styles.featured}`}><h3>광고가 끝났어요</h3><p>플랫폼에서 광고를 종료한 뒤 기록해 주세요. 기간이 지나도 자동 종료되지 않습니다.</p><div className={styles.alignRight}><button className={styles.primary} disabled={pending} onClick={() => void mutate({ action: "end" })}>종료 기록</button></div></section>}
+      {can("end") && <section className={`${styles.card} ${styles.featured}`}><h3>광고가 끝났어요</h3><p>플랫폼에서 광고를 종료한 뒤 기록해 주세요. 기간이 지나도 자동 종료되지 않습니다.</p>{confirming === "end"
+        ? <ConfirmBox id="end" title="광고를 종료로 기록할까요?" confirmLabel="종료로 기록" pendingLabel="기록 중…" pending={pending} onCancel={() => setConfirming(null)} onConfirm={() => void record("end")}>
+          플랫폼에서 광고를 끝냈는지 먼저 확인해 주세요. 종료로 기록하면 다시 ‘집행중’으로 돌릴 수 없어요.
+        </ConfirmBox>
+        : <div className={styles.alignRight}><button className={styles.primary} disabled={pending} onClick={() => setConfirming("end")}>종료 기록</button></div>}</section>}
       {campaign.rejectionReason && <section className={styles.card}><h3>플랫폼 반려 사유</h3><p className={styles.reason}>{campaign.rejectionReason}</p>{can("revise") && <div className={styles.alignRight}><button className={styles.primary} disabled={pending} onClick={() => void mutate({ action: "revise" })}>다시 고치기</button></div>}</section>}
       {campaign.status === "수정 요청" && <p className={styles.dashed}>반려 사유를 확인하고 문구와 상품 정보를 수정해 주세요. <Link className={styles.textLink} href={`/campaigns/${encodeURIComponent(campaign.id)}/review`}>문구 고치러 가기</Link></p>}
       {campaign.status === "종료" && <p className={styles.approval}><Icon name="check" />광고 집행 기록을 마쳤습니다. <Link className={styles.textLink} href={`/campaigns/${encodeURIComponent(campaign.id)}/performance`}>성과 숫자 입력하기</Link></p>}
       {campaign.status === "취소" && <p className={styles.dashed}>취소된 캠페인입니다. 저장된 기록만 확인할 수 있습니다.</p>}
       {!campaign.allowedActions.length && !["수정 요청", "종료", "취소"].includes(campaign.status) && <p className={styles.dashed}>현재 단계에서는 게시·집행 기록을 변경할 수 없습니다.</p>}
       <Feedback />
-      <details className={styles.card}><summary>게시 계획과 승인 문구 확인</summary><PlanFacts campaign={campaign} /><p className={styles.reason}>{campaign.caption}</p><p className={styles.help}>{campaign.hashtags.join(" ")}</p><Link className={styles.textLink} href={schedulePath(campaign.id)}>게시 시각·예산 보기</Link></details>
+      <details className={`${styles.card} ${styles.disclosure}`}>
+        <summary><span><strong>게시 계획과 승인 문구</strong><small>예약 시각 {formatTime(campaign.schedule?.scheduledAt)} · 예산 {money(campaign.schedule?.amount ?? campaign.initialBudget.amount)}</small></span><Icon name="chevron" size={20} /></summary>
+        <div className={styles.disclosureBody}>
+          <section aria-label="게시 계획"><h3 className={styles.subTitle}>게시 계획</h3><PlanFacts campaign={campaign} /></section>
+          <section aria-label="승인된 문구"><h3 className={styles.subTitle}>승인된 문구</h3><ApprovedCopies campaign={campaign} /></section>
+        </div>
+      </details>
       {(campaign.publishedAt || campaign.endedAt) && <dl className={`${styles.card} ${styles.facts}`}><div><dt>게시 시각</dt><dd>{formatTime(campaign.publishedAt)}</dd></div><div><dt>종료 시각</dt><dd>{formatTime(campaign.endedAt)}</dd></div></dl>}
       <p className={styles.help}>{MANUAL_NOTICE}</p>
     </section>

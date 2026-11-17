@@ -31,7 +31,16 @@ test("예약 성공 후 기록 경로로 이동하고 두 화면 사이 데이�
   await waitFor(() => expect(push).toHaveBeenCalledWith("/campaigns/demo/publishing"));
   view.rerender(<Harness mode="records" adapter={adapter} />);
   fireEvent.click(await screen.findByRole("button", { name: "게시함" }));
+  // 한 번 더 묻기 전에는 기록하지 않는다.
+  expect(screen.getByRole("alertdialog", { name: "플랫폼에 올린 게 맞나요?" })).toBeDefined();
+  expect(screen.queryByText(/집행중 상태로 기록했습니다/)).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "돌아가기" }));
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(screen.getByRole("button", { name: "게시함" })).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "게시함" }));
+  fireEvent.click(screen.getByRole("button", { name: "게시함으로 기록" }));
   fireEvent.click(await screen.findByRole("button", { name: "종료 기록" }));
+  fireEvent.click(screen.getByRole("button", { name: "종료로 기록" }));
   expect(await screen.findByText(/광고 집행 기록을 마쳤습니다/)).toBeDefined();
   expect(screen.getByText("4건")).toBeDefined();
   view.rerender(<Harness mode="schedule" adapter={adapter} />);
@@ -95,6 +104,9 @@ test("반려 입력은 항상 펼쳐지며 수정 요청에도 사유가 유지�
   expect(reason.getAttribute("aria-invalid")).toBe("true");
   fireEvent.change(reason, { target: { value: "상품 페이지 확인 필요" } });
   fireEvent.click(screen.getByRole("button", { name: "반려 기록" }));
+  // 사유를 채우면 기록 전에 한 번 더 묻는다.
+  expect(screen.getByRole("alertdialog", { name: "플랫폼 반려로 기록할까요?" })).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "반려로 기록" }));
   fireEvent.click(await screen.findByRole("button", { name: "다시 고치기" }));
   expect((await screen.findByRole("link", { name: "문구 고치러 가기" })).getAttribute("href")).toBe("/campaigns/demo/review");
   expect(screen.getAllByText("상품 페이지 확인 필요")).toHaveLength(2);
@@ -153,3 +165,43 @@ test("게시 예약됨에서는 확인 후 캠페인을 취소하고 이후 기�
   expect(screen.queryByRole("button", { name: "게시함" })).toBeNull();
   expect(screen.queryByRole("button", { name: "캠페인 취소" })).toBeNull();
 });
+
+test("금액에 쉼표를 써도 저장하고, 지난 시각은 저장 전에 막는다", async () => {
+  const adapter = createMockAdapter({ delay: 0 });
+  const mutate = vi.spyOn(adapter, "mutate");
+  render(<Harness adapter={adapter} />);
+  const amount = await screen.findByLabelText("금액 (원)") as HTMLInputElement;
+  expect((screen.getByLabelText("게시 예정일") as HTMLInputElement).min).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  fillPlan(-2);
+  expect(screen.getByText("이미 지난 시각이에요. 지금 이후로 골라 주세요.")).toBeDefined();
+  expect(screen.getByLabelText("시각").getAttribute("aria-invalid")).toBe("true");
+  expect((screen.getByRole("button", { name: "게시 예약" }) as HTMLButtonElement).disabled).toBe(true);
+  fillPlan(48);
+  fireEvent.change(amount, { target: { value: "50,000" } });
+  fireEvent.click(screen.getByRole("button", { name: "게시 예약" }));
+  await waitFor(() => expect(push).toHaveBeenCalledOnce());
+  expect(mutate.mock.calls[0][1]).toMatchObject({ action: "schedule", schedule: { amount: 50000 } });
+});
+
+test("쉼표 위치가 틀린 금액·기간은 다른 숫자로 저장하지 않고 저장 전에 알려 준다", async () => {
+  const adapter = createMockAdapter({ delay: 0 });
+  const mutate = vi.spyOn(adapter, "mutate");
+  render(<Harness adapter={adapter} />);
+  const amount = await screen.findByLabelText("금액 (원)") as HTMLInputElement;
+  fillPlan(48);
+  fireEvent.change(amount, { target: { value: "50,00" } });
+  fireEvent.change(screen.getByLabelText("기간 (일)"), { target: { value: "1,5" } });
+  expect(screen.getAllByText("쉼표는 세 자리마다 넣어 주세요. 예: 50,000")).toHaveLength(2);
+  expect(amount.getAttribute("aria-invalid")).toBe("true");
+  expect(amount.getAttribute("aria-describedby")).toBe("amount-format");
+  const save = screen.getByRole("button", { name: "게시 예약" }) as HTMLButtonElement;
+  expect(save.disabled).toBe(true);
+  fireEvent.submit(save.closest("form") as HTMLFormElement);
+  expect(mutate).not.toHaveBeenCalled();
+  fireEvent.change(amount, { target: { value: "50,000" } });
+  fireEvent.change(screen.getByLabelText("기간 (일)"), { target: { value: "5" } });
+  fireEvent.click(save);
+  await waitFor(() => expect(push).toHaveBeenCalledOnce());
+  expect(mutate.mock.calls[0][1]).toMatchObject({ schedule: { amount: 50000, days: 5 } });
+});
+

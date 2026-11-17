@@ -29,6 +29,9 @@ test("시스템이 ROAS를 계산하고 요약 확인 후 평가를 완료한다
   expect(screen.getByText(/2\.9배/)).toBeDefined();
   expect(screen.getAllByRole("listitem").length).toBeGreaterThanOrEqual(3);
   fireEvent.click(complete());
+  expect(screen.getByRole("alertdialog", { name: "평가를 완료할까요?" })).toBeDefined();
+  expect((await api.getCampaign("f")).status).toBe("종료");
+  fireEvent.click(screen.getByRole("button", { name: "평가 완료하기" }));
   expect(await screen.findByText(/평가를 마친 캠페인이에요/)).toBeDefined();
   expect((await api.getCampaign("f")).status).toBe("성과 평가 완료");
 });

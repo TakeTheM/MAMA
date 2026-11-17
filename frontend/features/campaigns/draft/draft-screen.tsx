@@ -4,10 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type KeyboardEvent } from "react";
 import { AppShell } from "@/components/ui/app-shell";
+import { ConfirmBox } from "@/components/ui/confirm-box";
 import { Icon } from "@/components/ui/icon";
+import { UnsavedGuard } from "@/components/ui/unsaved-guard";
 import ui from "@/components/ui/ui.module.css";
 import { type Channel, campaignPath } from "@/lib/campaign-status";
 import { useCampaign } from "../api-context";
+import { LENGTH_RULE, channelLength } from "../channel-length";
 import { type Campaign, type ChannelCopy, CHANNEL_LIMITS } from "../model";
 import { Feedback, Heading, LoadGate, WrongStage } from "../shared";
 import styles from "./draft.module.css";
@@ -36,9 +39,15 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
   const [active, setActive] = useState<Channel>(channels[0]);
   const [drafts, setDrafts] = useState<Partial<Record<Channel, ChannelCopy>>>(() => structuredClone(campaign.drafts));
   const [newTag, setNewTag] = useState("");
+  // 고친 채널을 다시 만들면 고친 내용이 사라지므로 그때만 한 번 더 묻는다.
+  const [confirmRegenerate, setConfirmRegenerate] = useState<Channel | null>(null);
+  const [reviewing, setReviewing] = useState(false);
   const copy = drafts[active] ?? { caption: "", hashtags: [] };
   const dirty = channels.filter((channel) => JSON.stringify(drafts[channel]) !== JSON.stringify(campaign.drafts[channel]));
   const limit = CHANNEL_LIMITS[active];
+  const length = channelLength(active, copy);
+  // 글자 수를 넘긴 채널이 있으면 검수 요청을 막는다(플랫폼에 올릴 수 없는 문구라서).
+  const overLimit = channels.filter((channel) => channelLength(channel, drafts[channel] ?? { caption: "", hashtags: [] }) > CHANNEL_LIMITS[channel]);
   const update = (next: Partial<ChannelCopy>) => setDrafts((current) => ({ ...current, [active]: { ...copy, ...next } }));
 
   function addTag() {
@@ -58,6 +67,12 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
       if (!last) return;
     }
   }
+  async function regenerate(channel: Channel) {
+    setConfirmRegenerate(null);
+    const next = await session.run((api) => api.regenerateChannel(campaign.id, channel), `${channel} 초안을 다시 만들었어요.`);
+    const fresh = next?.drafts[channel];
+    if (fresh) setDrafts((current) => ({ ...current, [channel]: fresh }));
+  }
   function onTabKey(event: KeyboardEvent<HTMLButtonElement>) {
     const index = channels.indexOf(active);
     const move = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
@@ -69,6 +84,7 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
   }
 
   return <div className={`${ui.columns} ${ui.columnsWide}`}>
+    <UnsavedGuard when={dirty.length > 0} message={`${dirty.join(", ")} 초안에서 고친 내용이 사라져요. 남기려면 ‘돌아가기’를 누르고 ‘저장’을 눌러 주세요.`} />
     <section aria-label="초안 편집" className={ui.stack} aria-busy={session.pending}>
       <div className={styles.tabRow}>
         <div role="tablist" aria-label="채널" className={ui.tabs}>
@@ -79,9 +95,9 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
 
       <div id="draft-panel" role="tabpanel" aria-labelledby={`tab-${active}`} className={ui.stack}>
         <div>
-          <div className={styles.labelRow}><label htmlFor="caption">캡션</label><span className={styles.counter} data-over={copy.caption.length > limit}>{copy.caption.length.toLocaleString("ko-KR")} / {limit.toLocaleString("ko-KR")}자</span></div>
+          <div className={styles.labelRow}><label htmlFor="caption">캡션</label><span className={styles.counter} data-over={length > limit}>{length.toLocaleString("ko-KR")} / {limit.toLocaleString("ko-KR")}자</span></div>
           <textarea id="caption" rows={8} className={styles.caption} value={copy.caption} disabled={session.pending} onChange={(event) => update({ caption: event.target.value })} aria-invalid={session.error?.fields.caption && !copy.caption.trim() ? true : undefined} aria-describedby="caption-help" />
-          <p id="caption-help" className={ui.help}>{copy.caption.length > limit ? `${active} 글자 수 제한을 넘었어요. 줄여 주세요.` : "AI가 만든 초안이에요. 바로 고쳐 쓸 수 있어요."}</p>
+          <p id="caption-help" className={ui.help}>{length > limit ? `${active} 글자 수 제한을 넘었어요. 줄여 주세요.` : "AI가 만든 초안이에요. 바로 고쳐 쓸 수 있어요."} {LENGTH_RULE[active]}</p>
         </div>
 
         <div>
@@ -94,21 +110,25 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
         </div>
 
         <div className={styles.footer}>
-          {campaign.allowedActions.includes("regenerate") ? <button className={ui.ghost} type="button" disabled={session.pending} onClick={async () => {
-            const channel = active;
-            const next = await session.run((api) => api.regenerateChannel(campaign.id, channel), `${channel} 초안을 다시 만들었어요.`);
-            const fresh = next?.drafts[channel];
-            if (fresh) setDrafts((current) => ({ ...current, [channel]: fresh }));
-          }}><Icon name="redo" size={16} />이 채널 다시 만들기</button> : <span />}
+          {campaign.allowedActions.includes("regenerate") ? <button className={ui.ghost} type="button" disabled={session.pending || confirmRegenerate === active}
+            onClick={() => (dirty.includes(active) ? setConfirmRegenerate(active) : void regenerate(active))}><Icon name="redo" size={16} />이 채널 다시 만들기</button> : <span />}
           <div className={styles.footerActions}>
             <button className={ui.secondary} type="button" disabled={session.pending || !dirty.length} onClick={() => void save()}>저장</button>
-            <button className={ui.primary} type="button" disabled={session.pending} onClick={async () => {
+            <button className={ui.primary} type="button" disabled={session.pending || overLimit.length > 0} aria-describedby={overLimit.length ? "over-limit" : undefined} onClick={async () => {
+              setReviewing(true);
               const next = await session.run((api) => api.requestReview(campaign.id, drafts));
-              if (next) router.push(`/campaigns/${encodeURIComponent(campaign.id)}/review`);
-            }}>{session.pending ? "요청 중…" : "검수 요청"}</button>
+              if (next) { router.push(`/campaigns/${encodeURIComponent(campaign.id)}/review`); return; }
+              setReviewing(false);
+            }}>{reviewing ? "검수 중…" : "검수 요청"}</button>
           </div>
         </div>
-        <p className={ui.help}>검수 요청은 자동으로 되지 않아요. 문구를 확인한 뒤 직접 눌러 주세요.{dirty.length > 0 && " 다시 만들면 이 채널에서 고친 내용은 사라져요."}</p>
+        {confirmRegenerate === active && <ConfirmBox id="regenerate" title={`${active} 초안을 다시 만들까요?`} confirmLabel="다시 만들기" onCancel={() => setConfirmRegenerate(null)} onConfirm={() => void regenerate(active)}>
+          이 채널에서 고친 내용은 사라지고 새 초안으로 바뀌어요.
+        </ConfirmBox>}
+        {overLimit.length > 0 && !reviewing && <p id="over-limit" className={ui.fieldError}><Icon name="alert" size={16} />{overLimit.join(", ")} 게시물(캡션+해시태그)이 글자 수 제한을 넘었어요. 줄여야 검수를 요청할 수 있어요.</p>}
+        {reviewing
+          ? <p role="status" className={ui.help}>AI가 위험 표현을 검수하고 있어요. 끝나면 검수 결과 화면으로 넘어가요.</p>
+          : <p className={ui.help}>검수 요청은 자동으로 되지 않아요. 문구를 확인한 뒤 직접 눌러 주세요.</p>}
         <Feedback pending={session.pending} error={session.error} notice={session.notice} />
       </div>
     </section>

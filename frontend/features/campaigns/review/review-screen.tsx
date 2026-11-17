@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import { AppShell } from "@/components/ui/app-shell";
+import { ConfirmBox } from "@/components/ui/confirm-box";
 import { Icon } from "@/components/ui/icon";
+import { UnsavedGuard } from "@/components/ui/unsaved-guard";
 import ui from "@/components/ui/ui.module.css";
 import { type Channel, campaignPath } from "@/lib/campaign-status";
 import { useCampaign } from "../api-context";
@@ -29,6 +31,8 @@ export function ReviewScreen({ campaignId }: { campaignId: string }) {
 }
 
 type Session = ReturnType<typeof useCampaign>;
+/** 검수가 아직 끝나지 않았을 때 결과를 다시 확인하는 간격 */
+export const REVIEW_POLL_MS = 3000;
 
 /** 버튼 한 번으로 고칠 수 있는 경고인가 (바꿀 문구가 있거나, 광고 표시 누락이라 #광고를 붙이면 되는 경우) */
 export function canApply(finding: RiskFinding) {
@@ -69,6 +73,21 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
   const [active, setActive] = useState<Channel>(() => open[0]?.channel ?? channels[0]);
   const [editing, setEditing] = useState(false);
   const [confirmApprove, setConfirmApprove] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const { refresh } = session;
+  // 다른 곳에서 요청한 검수가 진행 중이면 사장님이 새로고침하지 않아도 끝나는 대로 결과를 보여 준다.
+  // 앞 조회가 끝난 뒤에 다음 조회를 예약해서 요청이 겹치지 않게 한다(겹치면 늦게 온 '검수 중' 응답이 완료 화면을 덮을 수 있다).
+  useEffect(() => {
+    if (!campaign.reviewPending) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      await refresh();
+      if (!stopped) timer = setTimeout(poll, REVIEW_POLL_MS);
+    };
+    timer = setTimeout(poll, REVIEW_POLL_MS);
+    return () => { stopped = true; clearTimeout(timer); };
+  }, [campaign.reviewPending, refresh]);
   const copy = drafts[active] ?? { caption: "", hashtags: [] };
   const findings = allFindings.filter((finding) => finding.channel === active);
   const changed = JSON.stringify(drafts) !== JSON.stringify(campaign.drafts);
@@ -81,7 +100,9 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
     if (next) router.push(`/campaigns/${encodeURIComponent(campaign.id)}/publishing/schedule`);
   }
   async function rereview() {
+    setReviewing(true);
     const next = await session.run((api) => api.requestReview(campaign.id, changed ? drafts : undefined));
+    setReviewing(false);
     if (!next) return;
     setEditing(false);
     setActive(next.findings[0]?.channel ?? active);
@@ -103,6 +124,7 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
   }
 
   return <>
+    <UnsavedGuard when={changed} message="적용하거나 직접 고친 문구가 사라져요. 남기려면 ‘돌아가기’를 누르고 ‘다시 검수 요청’을 눌러 주세요." />
     {/* 안내 띠는 서버 검수 결과만 보여 준다. 제안을 적용할 때마다 띠가 바뀌면 화면이 새로 불러와진 것처럼 보여서, 고친 상태는 아래 승인 줄에서만 알린다. */}
     <ResultBanner campaign={campaign} openCount={campaign.findings.filter((finding) => !finding.applied).length} />
     <div className={`${ui.columns} ${ui.columnsWide}`}>
@@ -134,15 +156,13 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
             ? <span id="approve-hint" className={ui.help} aria-live="polite"><strong>고친 문구로 다시 검수를 요청해 주세요</strong> 고친 내용은 아직 저장 전이에요. ‘다시 검수 요청’을 누르면 저장하고 검수해요.</span>
             : <span id="approve-hint" className={ui.help}>{approveHint(campaign, canApprove, open.length)}</span>}
           {!confirmApprove && <button type="button" className={`${ui.secondary} ${ui.off}`} disabled={!canApprove || session.pending} aria-describedby="approve-hint" onClick={() => (open.length ? setConfirmApprove(true) : void approve())}>승인</button>}
-          {(campaign.allowedActions.includes("request-review") || changed) && <button type="button" className={ui.primary} disabled={session.pending || !campaign.allowedActions.includes("request-review")} onClick={() => { setConfirmApprove(false); void rereview(); }}>{session.pending ? "요청 중…" : "다시 검수 요청"}</button>}
+          {(campaign.allowedActions.includes("request-review") || changed) && <button type="button" className={ui.primary} disabled={session.pending || !campaign.allowedActions.includes("request-review")} onClick={() => { setConfirmApprove(false); void rereview(); }}>{reviewing ? "검수 중…" : "다시 검수 요청"}</button>}
         </div>
-        {confirmApprove && <div className={ui.confirm} role="alertdialog" aria-labelledby="approve-title" aria-describedby="approve-desc">
-          <div><strong id="approve-title">경고 {open.length}개가 남아 있어요. 이대로 승인할까요?</strong><p id="approve-desc">승인한 계정과 시각이 상태 기록에 남아요. 위험 표현을 확인한 뒤 결정해 주세요.</p></div>
-          <div>
-            <button type="button" className={ui.ghost} disabled={session.pending} onClick={() => setConfirmApprove(false)}>돌아가기</button>
-            <button type="button" className={`${ui.primary} ${ui.small}`} disabled={session.pending} onClick={() => void approve()}>그대로 승인</button>
-          </div>
-        </div>}
+        {confirmApprove && <ConfirmBox id="approve" title={`경고 ${open.length}개가 남아 있어요. 이대로 승인할까요?`} confirmLabel="그대로 승인" pendingLabel="승인 중…" pending={session.pending}
+          onCancel={() => setConfirmApprove(false)} onConfirm={() => void approve()}>
+          승인한 계정과 시각이 상태 기록에 남아요. 위험 표현을 확인한 뒤 결정해 주세요.
+        </ConfirmBox>}
+        {reviewing && <p role="status" className={ui.help}>AI가 문구를 다시 검수하고 있어요. 끝나면 이 화면에 결과가 바로 나와요.</p>}
         {localError && <p role="alert" className={ui.error}>{localError}</p>}
         <Feedback pending={session.pending} error={session.error} notice={session.notice} />
       </section>
@@ -156,7 +176,7 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
 }
 
 function ResultBanner({ campaign, openCount }: { campaign: Campaign; openCount: number }) {
-  if (campaign.reviewPending) return <Banner tone="alert" title="검수하고 있어요"><span>잠시 뒤 새로고침해 주세요.</span></Banner>;
+  if (campaign.reviewPending) return <Banner tone="alert" title="검수하고 있어요"><span>끝나면 자동으로 결과를 보여 드려요. 새로고침하지 않아도 돼요.</span></Banner>;
   if (campaign.rejectionReason && campaign.status === "수정 요청") {
     return <Banner tone="alert" title="플랫폼에서 반려된 광고예요">
       <span>반려 사유: {campaign.rejectionReason}</span>
@@ -169,7 +189,7 @@ function ResultBanner({ campaign, openCount }: { campaign: Campaign; openCount: 
     return <Banner tone="alert" title={`위험 표현 ${openCount}개를 찾았어요`}><span>고쳐 쓴 문장을 적용하거나 직접 고치는 걸 권해요. 내용을 확인했다면 그대로 승인할 수도 있어요.</span></Banner>;
   }
   if (campaign.canApprove) return <Banner tone="ok" title="위험 표현이 없어요"><span>문구를 한 번 더 확인하고 ‘승인’을 눌러 주세요. AI 검수만으로는 승인되지 않아요.</span></Banner>;
-  return <Banner tone="alert" title="검수 결과를 기다리고 있어요"><span>잠시 뒤 새로고침해 주세요.</span></Banner>;
+  return <Banner tone="alert" title="검수 결과를 기다리고 있어요"><span>결과가 나오면 자동으로 보여 드려요.</span></Banner>;
 }
 function approveHint(campaign: Campaign, canApprove: boolean, openCount: number) {
   if (canApprove) return openCount ? `경고 ${openCount}개를 확인했다면 그대로 승인할 수 있어요` : "위험 표현이 없어요. 문구를 확인하고 승인해 주세요.";
@@ -193,7 +213,7 @@ function Marked({ text, findings }: { text: string; findings: RiskFinding[] }) {
     parts.push(rest.slice(0, hit.at));
     parts.push(hit.fixed
       ? <ins key={key++} className={styles.fixed}><span>{hit.needle}</span><sup>{hit.no}</sup></ins>
-      : <mark key={key++}><span>{hit.needle}</span><sup>{hit.no}</sup></mark>);
+      : <mark key={key++}><span>{hit.needle}</span><sup><JumpToFinding id={hit.finding.id} no={hit.no} /></sup></mark>);
     rest = rest.slice(hit.at + hit.needle.length);
   }
   return <>{parts}</>;
@@ -212,8 +232,23 @@ function TagsInput({ tags, disabled, onChange }: { tags: string[]; disabled: boo
   return <input id="edit-tags" type="text" value={text} disabled={disabled} onChange={(event) => { setText(event.target.value); onChange(parseTags(event.target.value)); }} onBlur={() => setText(tags.join(" "))} />;
 }
 
+const cardId = (id: string) => `finding-card-${id}`;
+/**
+ * 문구 속 번호를 누르면 그 경고 카드로 옮겨 간다. 휴대폰에서는 카드가 문구 아래로 내려가서
+ * 번호만 보고 카드를 찾으려면 계속 스크롤해야 했다.
+ */
+function JumpToFinding({ id, no }: { id: string; no: number }) {
+  return <button type="button" className={styles.jump} aria-label={`경고 ${no} 설명 보기`} onClick={() => {
+    const card = document.getElementById(cardId(id));
+    if (!card) return;
+    const smooth = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    card.scrollIntoView?.({ behavior: smooth ? "smooth" : "auto", block: "center" });
+    card.focus({ preventScroll: true });
+  }}>{no}</button>;
+}
+
 function FindingCard({ finding, index, disabled, onApply }: { finding: RiskFinding; index: number; disabled: boolean; onApply: () => void }) {
-  return <article className={`${ui.card} ${styles.finding}`} data-applied={finding.applied} aria-labelledby={`finding-${finding.id}`}>
+  return <article id={cardId(finding.id)} tabIndex={-1} className={`${ui.card} ${styles.finding}`} data-applied={finding.applied} aria-labelledby={`finding-${finding.id}`}>
     <div className={styles.findingHead}><span className={styles.no}>{index}</span><span className={styles.rule}>{finding.rule} {finding.ruleLabel}</span>{finding.applied && <span className={styles.done}><Icon name="check" size={14} />적용됨</span>}</div>
     <h3 id={`finding-${finding.id}`}>{finding.title}</h3>
     <p className={styles.reason}>{finding.reason}</p>

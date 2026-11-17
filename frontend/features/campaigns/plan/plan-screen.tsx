@@ -70,8 +70,9 @@ function PlanForm({ campaignId, initial }: { campaignId: string | null; initial:
       setSavedId(saved.id);
       if (kind === "draft") { router.push(`/campaigns/${encodeURIComponent(saved.id)}/draft`); return; }
       setNotice("임시 저장했어요. 목록에서 이어서 쓸 수 있어요.");
-      // 새 캠페인이면 주소를 바꾸는 동안 버튼을 꺼 둔다.
-      if (!savedId) { router.replace(`/campaigns/${encodeURIComponent(saved.id)}/plan`); return; }
+      // 새 캠페인이면 주소만 이 캠페인으로 바꾼다. router.replace를 쓰면 다른 화면으로 다시 그려져서
+      // 입력칸이 깜빡이고 '임시 저장했어요' 안내가 사라진다. 새로고침하면 이 주소의 기획 화면이 열린다.
+      if (!savedId) window.history.replaceState(null, "", `/campaigns/${encodeURIComponent(saved.id)}/plan`);
       setPending(null);
     } catch (failure) {
       const error = asApiError(failure);
@@ -104,16 +105,16 @@ function PlanForm({ campaignId, initial }: { campaignId: string | null; initial:
         </section>
 
         <section className={ui.card} aria-labelledby="goal-title">
-          <h2 id="goal-title" className={ui.sectionTitle}><span className={ui.stepNo}>2</span>광고 목표</h2>
+          <h2 id="goal-title" className={ui.sectionTitle}><span className={ui.stepNo}>2</span>광고 목표 <small>1개만</small></h2>
           <fieldset className={ui.chips}><legend>광고 목표</legend>
-            {GOALS.map((goal) => <label key={goal} className={ui.chip}><input type="radio" name="goal" value={goal} checked={values.goal === goal} onChange={() => set("goal", goal)} />{goal}</label>)}
+            {GOALS.map((goal) => <label key={goal} className={ui.chip}><input type="radio" name="goal" value={goal} checked={values.goal === goal} onChange={() => set("goal", goal)} />{values.goal === goal && <Icon name="check" size={16} />}{goal}</label>)}
           </fieldset>
         </section>
 
         <section className={ui.card} aria-labelledby="channel-title">
           <h2 id="channel-title" className={ui.sectionTitle}><span className={ui.stepNo}>3</span>채널 <small>1개 이상</small></h2>
           <fieldset className={ui.chips} aria-describedby={fieldError("channels") ? "channels-error" : undefined}><legend>채널</legend>
-            {CHANNELS.map((channel) => <label key={channel} className={ui.chip}><input type="checkbox" checked={values.channels.includes(channel)} onChange={(event) => toggleChannel(channel, event.target.checked)} aria-invalid={fieldError("channels") ? true : undefined} />{channel}</label>)}
+            {CHANNELS.map((channel) => <label key={channel} className={ui.chip}><input type="checkbox" checked={values.channels.includes(channel)} onChange={(event) => toggleChannel(channel, event.target.checked)} aria-invalid={fieldError("channels") ? true : undefined} />{values.channels.includes(channel) && <Icon name="check" size={16} />}{channel}</label>)}
           </fieldset>
           {fieldError("channels") && <ErrorText id="channels-error">{fieldError("channels")}</ErrorText>}
         </section>

@@ -53,9 +53,21 @@ test("AI 호출이 실패하면 입력을 지우지 않고 오류를 보여 준�
   expect(push).not.toHaveBeenCalled();
 });
 
-test("임시 저장하면 기획중 캠페인 주소로 바꾼다", async () => {
-  render(<CampaignApiProvider api={createMockCampaignApi({ delay: 0 })}><NewCampaignScreen /></CampaignApiProvider>);
-  fireEvent.change(screen.getByLabelText("상품명"), { target: { value: "보리 쿠키" } });
+test("임시 저장하면 화면을 다시 그리지 않고 주소만 기획중 캠페인으로 바꾼다", async () => {
+  window.history.replaceState(null, "", "/campaigns/new");
+  const api = createMockCampaignApi({ delay: 0 });
+  render(<CampaignApiProvider api={api}><NewCampaignScreen /></CampaignApiProvider>);
+  const name = screen.getByLabelText("상품명") as HTMLInputElement;
+  fireEvent.change(name, { target: { value: "보리 쿠키" } });
   fireEvent.click(screen.getByRole("button", { name: "임시 저장" }));
-  await waitFor(() => expect(replace).toHaveBeenCalledWith("/campaigns/new-1/plan"));
+  expect(await screen.findByText("임시 저장했어요. 목록에서 이어서 쓸 수 있어요.")).toBeDefined();
+  expect(window.location.pathname).toBe("/campaigns/new-1/plan");
+  expect(replace).not.toHaveBeenCalled();
+  expect(screen.getByLabelText("상품명")).toBe(name);
+  // 다시 저장하면 새로 만들지 않고 같은 캠페인에 저장한다.
+  fireEvent.change(name, { target: { value: "보리 쿠키 2" } });
+  fireEvent.click(screen.getByRole("button", { name: "임시 저장" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "임시 저장" }).hasAttribute("disabled")).toBe(false));
+  expect((await api.getCampaign("new-1")).plan.productName).toBe("보리 쿠키 2");
+  await expect(api.getCampaign("new-2")).rejects.toBeDefined();
 });

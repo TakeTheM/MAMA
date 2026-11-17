@@ -28,7 +28,43 @@ function kindOf(status: number): HttpErrorKind {
   return "network";
 }
 
-type ValidationItem = { loc?: (string | number)[]; msg?: string };
+type ValidationItem = { loc?: (string | number)[]; msg?: string; type?: string; input?: unknown; ctx?: Record<string, unknown> };
+
+const has = (value: unknown) => value !== undefined && value !== null && value !== "";
+const big = (value: unknown) => Number(value) >= 1e12;
+const num = (value: unknown) => (typeof value === "number" ? value.toLocaleString("ko-KR") : String(value));
+
+/**
+ * FastAPI(Pydantic)의 영어 검증 메시지를 사장님이 읽을 한국어로 바꾼다.
+ * 문장 대신 오류 종류(type)와 기준값(ctx)을 보고 만든다. 백엔드가 직접 쓴 한국어 메시지(value_error)는 그대로 쓴다.
+ */
+export function koreanValidationMessage(item: ValidationItem): string {
+  const ctx = item.ctx ?? {};
+  const empty = item.input === null || item.input === undefined || item.input === "";
+  switch (item.type) {
+    case "missing": return "입력해 주세요";
+    case "int_type": case "int_parsing": case "float_type": case "float_parsing": case "decimal_parsing": case "decimal_type":
+      return empty ? "입력해 주세요" : "숫자만 입력해 주세요";
+    case "int_from_float": return "소수점 없이 숫자만 입력해 주세요";
+    case "string_type": return empty ? "입력해 주세요" : "글자로 입력해 주세요";
+    case "string_too_short": return has(ctx.min_length) && Number(ctx.min_length) > 1 ? `${num(ctx.min_length)}자 이상 입력해 주세요` : "입력해 주세요";
+    case "string_too_long": return has(ctx.max_length) ? `${num(ctx.max_length)}자 이하로 줄여 주세요` : "글자 수를 줄여 주세요";
+    case "too_short": return has(ctx.min_length) && Number(ctx.min_length) > 1 ? `${num(ctx.min_length)}개 이상 골라 주세요` : "1개 이상 골라 주세요";
+    case "too_long": return has(ctx.max_length) ? `${num(ctx.max_length)}개 이하로 골라 주세요` : "개수를 줄여 주세요";
+    case "greater_than_equal": return has(ctx.ge) ? `${num(ctx.ge)} 이상으로 입력해 주세요` : "더 큰 숫자를 입력해 주세요";
+    case "greater_than": return has(ctx.gt) ? `${num(ctx.gt)}보다 큰 숫자를 입력해 주세요` : "더 큰 숫자를 입력해 주세요";
+    case "less_than_equal": return !has(ctx.le) || big(ctx.le) ? "숫자가 너무 커요" : `${num(ctx.le)} 이하로 입력해 주세요`;
+    case "less_than": return !has(ctx.lt) || big(ctx.lt) ? "숫자가 너무 커요" : `${num(ctx.lt)}보다 작은 숫자를 입력해 주세요`;
+    case "literal_error": case "enum": return "목록에서 골라 주세요";
+    case "datetime_type": case "datetime_parsing": case "datetime_from_date_parsing": case "date_parsing": case "timezone_aware":
+      return "날짜와 시각을 확인해 주세요";
+    case "url_parsing": case "url_type": return "주소 형식을 확인해 주세요";
+    case "extra_forbidden": return "보낼 수 없는 항목이에요";
+  }
+  const message = (item.msg ?? "").replace(/^Value error, /, "").trim();
+  // 백엔드가 직접 쓴 한국어 안내는 그대로 보여 주고, 영어 문장은 내보내지 않는다.
+  return /[가-힣]/.test(message) ? message : "값을 확인해 주세요";
+}
 async function toError(response: Response): Promise<HttpError> {
   let detail: unknown;
   try { detail = (await response.json())?.detail; } catch { /* 본문 없음 */ }
@@ -37,7 +73,7 @@ async function toError(response: Response): Promise<HttpError> {
     const fields: Record<string, string> = {};
     for (const item of detail as ValidationItem[]) {
       const field = item.loc?.filter((part) => part !== "body").map(String).at(0);
-      if (field && !fields[field]) fields[field] = (item.msg ?? "값을 확인해 주세요").replace(/^Value error, /, "");
+      if (field && !fields[field]) fields[field] = koreanValidationMessage(item);
     }
     return new HttpError(response.status, kind, "입력한 값을 확인해 주세요.", fields);
   }

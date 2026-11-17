@@ -29,3 +29,8 @@
 .swap del { color: #8a8a8a; }
 .swap ins { text-decoration: none; font-weight: 700; color: #217344; }
 @media (max-width: 767px) { .decision > span { flex-basis: 100%; } .decision > button { flex: 1 1 0; } }
+/* 문구 속 경고 번호: 누르면 해당 경고 카드로 이동한다 */
+.jump { border: 0; padding: 0 2px; margin: 0; background: none; font: inherit; font-weight: 700; color: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; min-width: 16px; }
+.jump:focus-visible { outline: 2px solid #e26355; outline-offset: 1px; border-radius: 3px; }
+.finding:focus { outline: none; }
+.finding:focus-visible, .finding:focus { box-shadow: 0 0 0 3px #e2635566; }
