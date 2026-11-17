@@ -4,7 +4,28 @@
 - 결정일: 2026.10.27
 - 근거: stack-inputs.md(팀 경험·조건), mvp-scope.md, backlog.md(필수 스토리)
 
-## 우리 팀 상황
+## 현재 구성 (2026-11-17 코드 대조)
+
+[중간 미팅 보고서](interview/mid-meeting-report.md)의 PostgreSQL 전환·사용자 승인·수동 기록 방향과 현재 코드를 반영했다. 아래 초기 후보 비교의 가격·무료 한도·제공사 정책은 당시 조사 기록이며 이번에 재검증하지 않았다.
+
+| 구분 | 현재 기준 | 근거 |
+| --- | --- | --- |
+| 프론트 | Next.js 16·React·TypeScript, CSS Modules·Tailwind 설정 | `frontend/package.json`, `frontend/next.config.ts` |
+| 프록시 | 브라우저 `/api/*` → Next.js rewrites → `BACKEND_URL`의 FastAPI | `frontend/next.config.ts` |
+| 백엔드 | Python 3.13·uv·FastAPI, SQLAlchemy 동기 Session·Alembic | `backend/pyproject.toml` |
+| DB | `DATABASE_URL`로 PostgreSQL/Supabase(psycopg) 연결. MySQL은 호환용 | `backend/app/database.py`, `backend/README.md` |
+| 작업공간 | 로그인·소유권 검사 없는 공유 캠페인. 인증·계정별 저장은 후속 결정 | `backend/main.py`, `backend/docs/IMPLEMENTATION.md` |
+| LLM | `backend/app/llm.py`에서 초안·검수·성과 요약. 모델·키는 환경변수 | `backend/.env.example` |
+| 테스트 | 프론트 Vitest, 백엔드 Pytest. DB 통합 테스트는 전용 테스트 DB 필요 | 각 영역 테스트 설정·백엔드 README |
+| 배포 | 프론트 Vercel(`frontend`), 백엔드 문서·빌드 절차도 Vercel(`backend`) | `backend/README.md`, `backend/scripts/vercel-build.sh` |
+
+현재 실행·환경변수·마이그레이션·배포는 [루트 README](../README.md)와 [백엔드 README](../backend/README.md)를 따른다. 실제 AI·DB·배포 전체 흐름의 검증 완료를 뜻하지 않는다.
+
+## 초기 결정 기록을 읽는 방법
+
+아래 팀 경험·후보 비교·로그인 후보·Render 설계는 2026-10-27 당시 기록이다. 현재 구성은 위 표가 우선한다. JWT·소유권 검사는 이후 구현됐다가 2026-11-10 제거됐으며, 현재 `JWT_SECRET`은 사용하지 않는다. 보고서가 제안한 인증 재도입을 이미 완료된 것으로 가정하지 않는다.
+
+## 우리 팀 상황 (초기 기록)
 
 | 항목 | 내용 |
 | --- | --- |
@@ -16,7 +37,7 @@
 | 시연 방식 (로컬 / 외부 접속) | 배포 후 외부 접속 |
 | 제약 (비용, 설치 권한, 외부 서비스) | 무료로만. 설치 권한·외부 서비스 제한 없음. 5명 모두 Mac. LLM은 학교 제공 키 사용(제공사·한도 확인 필요). 간단한 회원가입·로그인 필요 |
 
-## 후보 2안 비교
+## 초기 후보 3안 비교
 
 
 | 비교 항목 | A안: Next.js 풀스택 + Supabase | B안: React(Vite) + FastAPI + Neon | C안: Next.js + FastAPI + Neon (혼합) |
@@ -93,7 +114,7 @@ cp frontend/.env.example frontend/.env.local
 - B안·C안: argon2·Postgres 드라이버의 arm64 휠 제공 여부는 확인 필요. 없으면 Xcode Command Line Tools가 필요할 수 있습니다.
 - C안은 A안의 Node 네이티브 바이너리(SWC, Tailwind) 주의점과 B안의 Python 주의점을 모두 가집니다.
 
-## 최종 선택
+## 최초 선택 (2026-10-27)
 
 - 선택한 안: C안 (수정)
 - 프론트엔드: Next.js TypeScript
@@ -103,7 +124,7 @@ cp frontend/.env.example frontend/.env.local
 - 테스트 방식: 프론트엔드 Vitest, 백엔드 Pytest
 - 시연·배포 환경: Vercel + Render
 
-## 선택 이유 (팀 경험·기간·핵심 기능으로)
+## 최초 선택 이유 (팀 경험·기간·핵심 기능으로)
 1. **팀 경험:** 프론트는 Next.js를 써 본 임소리·윤미수·박하린이 바로 화면을 만들 수 있고, 백엔드는 FastAPI를 써 본 이규민의 경험을 살릴 수 있다. 두 경험을 모두 쓰는 조합이다.
 2. **핵심 기능:** 상태 전이·상태 기록, 소유 셀러 권한, LLM 3곳(초안 생성 US-01, 위험 표현 검수 US-03, 성과 요약 US-05), 금지어 이중 검사, ROAS 계산을 FastAPI 한 곳에 모은다. Next.js는 보여 주고 전달만 하므로 서버/클라이언트 경계 판단(윤미수가 어려웠다고 기록)에서 생기는 실수가 줄어든다.
 3. **보안:** LLM 키·DB 접속 정보 같은 비밀값이 백엔드에만 있고 Next.js 쪽에는 없어, 키가 브라우저에 노출될 위험이 가장 작다.
@@ -116,7 +137,7 @@ cp frontend/.env.example frontend/.env.local
 - **C안을 고르며 감수하는 것:** 백엔드 일이 이규민 1명에게 몰리고, 로그인을 직접 구현해야 하며(Supabase Auth를 쓰지 않는 경우), 배포가 Vercel·Render·Supabase 3곳이고 Render 무료 서버는 15분 비활성 뒤 꺼진다. 대응은 "예상 어려움과 대응"에 있다.
 - **재검토 결과 (2026-10-27):** 개발 기간이 8주, 팀 합계 20시간으로 확정된 뒤 다시 검토했고 C안을 유지한다. 원래 C안에서 바꾼 것은 DB 하나(Neon → Supabase)다. 유지 이유: 미정. 앞으로는 "예상 어려움과 대응" 표의 조건이 생길 때만 해당 부분을 바꾸고, 바꾼 내용은 이 문서에 기록한다.
 
-## LLM 연결
+## 초기 LLM 연결 계획
 
 - LLM이 맡는 일: 캡션·해시태그 초안 생성(US-01), 위험 표현 검수(US-03), 성과 요약·다음 광고 제안(US-05). 상태를 바꾸는 최종 결정(승인, 평가 완료)은 사장님이 버튼으로 하고, 서버의 상태 전이 규칙이 검사합니다. ROAS 같은 숫자는 시스템이 계산합니다.
 - A안: Next.js Route Handler / Server Action에서만 호출(Vercel AI SDK로 제공사 교체 쉬움). 키는 로컬 `.env.local`, 배포는 Vercel 환경변수. **이름에 `NEXT_PUBLIC_`를 붙이지 않습니다**(붙이면 브라우저에 노출).
@@ -143,7 +164,7 @@ cp frontend/.env.example frontend/.env.local
 | (공통) 검수 결과를 JSON으로 안정적으로 받기 | LLM 제공사가 정해진 뒤 구조화 출력 방식을 맞춤 |
 | (공통) Tailwind·shadcn/ui는 전원 신규 | shadcn 기본 컴포넌트만 쓰는 쪽으로 범위를 줄임 |
 
-## 확인할 것
+## 초기 확인 목록과 현재 후속 항목
 | 확인할 내용 | 담당 | 언제 |
 | --- | --- | --- |
 | 학교 LLM 키의 제공사, 직접 키인지 게이트웨이 키인지, 호출 한도·유효 기간, 외부 배포 서버에서 써도 되는지 | 미정 | 미정 |
@@ -157,6 +178,14 @@ cp frontend/.env.example frontend/.env.local
 | (C안 선택 시) 로그인 방식 ①/② 선택, rewrites 프록시로 시작하는 방침 동의 | 미정 | 미정 |
 | (C안 선택 시) Python ORM·마이그레이션 도구, Supabase 개발용/배포용 DB 분리 | 미정 | 미정 |
 | (C안 선택 시) 시연 전 백엔드 깨우기 담당 | 미정 | 미정 |
+
+현재 확인 상태:
+
+- nvm·Node 24, Python 3.13·uv, SQLAlchemy·Alembic, `/api/*` rewrites는 저장소에 구성돼 있다.
+- 사용자 흐름의 상태 이름과 수동 게시·종료 기록을 정리했다.
+- 현재 인증은 없다. 인증 재도입·계정별 저장 범위는 후속 결정이며 기존 로그인 후보 표를 현재 선택으로 읽지 않는다.
+- 실제 AI 제공사·모델·키·한도, 배포 환경 전체 흐름, DB 분리·계정 관리, 신뢰할 근거 자료·업종·채널은 별도 확인한다.
+- 위 표의 담당·기한은 초기 기록이다. 새 담당·일정은 이번 문서 반영에서 임의로 확정하지 않는다.
 
 ## 의견이 갈렸다면
 -
