@@ -69,7 +69,7 @@ export type CampaignSummary = Pick<Campaign, "id" | "name" | "status" | "updated
   channels: Channel[]; findingCount: number; roas: number | null;
 };
 
-export type ApiErrorCode = "not_found" | "forbidden" | "network" | "validation" | "conflict" | "llm";
+export type ApiErrorCode = "not_found" | "forbidden" | "unauthorized" | "network" | "validation" | "conflict" | "llm";
 export class ApiError extends Error {
   /** 저장은 됐지만 다음 단계에서 실패했을 때, 이미 만들어진 캠페인 id */
   campaignId?: string;

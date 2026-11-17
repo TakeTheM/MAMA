@@ -2,6 +2,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { type CampaignOut, createHttpCampaignApi, toCampaign } from "../features/campaigns/http-api";
 import { createHttpPublishingAdapter } from "../features/publishing/http-adapter";
 import { apiFetch } from "../lib/api/http";
+import { navigation } from "../lib/api/login-path";
 
 // backend/app/schemas.py CampaignOut 모양
 function campaignOut(overrides: Partial<CampaignOut> = {}): CampaignOut {
@@ -27,10 +28,20 @@ function stub(handler: Handler) {
 }
 afterEach(() => { vi.unstubAllGlobals(); });
 
-test("인증 헤더 없이 부르고, 401이면 로그인 요구 안내로 바꾼다", async () => {
-  stub(() => json(401, { detail: "인증 정보가 올바르지 않거나 만료되었습니다" }));
-  await expect(createHttpCampaignApi().listCampaigns()).rejects.toMatchObject({ code: "forbidden", message: expect.stringContaining("로그인을 요구") });
+test("인증 헤더 없이 부르고(쿠키 세션), 401이면 보던 경로를 기억해 로그인 화면으로 한 번만 보낸다", async () => {
+  const go = vi.spyOn(navigation, "go").mockImplementation(() => undefined);
+  navigation.redirecting = false;
+  window.history.replaceState(null, "", "/campaigns/3/review?tab=x");
+  stub(() => json(401, { detail: "로그인이 필요합니다" }));
+  const api = createHttpCampaignApi();
+  await expect(api.listCampaigns()).rejects.toMatchObject({ code: "unauthorized" });
+  await expect(api.getCampaign("3")).rejects.toMatchObject({ code: "unauthorized" });
   expect((calls[0].init.headers as Record<string, string>).Authorization).toBeUndefined();
+  expect(go).toHaveBeenCalledOnce();
+  expect(go).toHaveBeenCalledWith("/login?next=%2Fcampaigns%2F3%2Freview%3Ftab%3Dx");
+  go.mockRestore();
+  navigation.redirecting = false;
+  window.history.replaceState(null, "", "/");
 });
 
 test("응답을 화면 모델로 옮긴다: 채널 이름, 경고, 승인 가능, 기록", () => {

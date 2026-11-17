@@ -6,6 +6,7 @@ import { LoadGate as CommonLoadGate } from "@/components/ui/load-gate";
 import { canceledFrom } from "@/lib/campaign-status";
 import ui from "@/components/ui/ui.module.css";
 import { type Campaign, ApiError } from "./model";
+import { LoginAgainLink } from "@/components/ui/login-again-link";
 
 /** 캠페인 화면용 불러오기 게이트 (공통 LoadGate에 캠페인 타입을 정해 둠) */
 export function LoadGate({ campaign, loadError, reload, children }: {
@@ -26,7 +27,7 @@ export function Heading({ campaign, pending, onCancel }: { campaign: Campaign; p
 export function Feedback({ pending, error, notice, id = "action-error" }: { pending: boolean; error: ApiError | null; notice: string; id?: string }) {
   return <div className={ui.feedback}>
     {pending && <p role="status">요청을 처리하고 있습니다…</p>}
-    {error && <p id={id} role="alert" className={ui.error}>{error.message}</p>}
+    {error && <p id={id} role="alert" className={ui.error}>{error.message}{error.code === "unauthorized" && <> <LoginAgainLink className={ui.textLink} /></>}</p>}
     <p role="status" aria-live="polite" className={ui.success}>{notice}</p>
   </div>;
 }

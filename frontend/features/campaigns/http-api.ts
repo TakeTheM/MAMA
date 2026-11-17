@@ -55,8 +55,7 @@ function toApiError(error: unknown, campaignId?: string): ApiError {
   // 초안 생성 422는 "초안 생성에 필요한 입력: product_name, ..." 형식의 문자열로 온다.
   const missing = /필요한 입력: (.+)$/.exec(error.message)?.[1];
   if (missing) for (const key of missing.split(/,\s*/)) fields[FIELD[key] ?? key] = "입력해 주세요";
-  const code = error.kind === "unauthorized" ? "forbidden" : error.kind;
-  const result = new ApiError(code, error.message, fields);
+  const result = new ApiError(error.kind, error.message, fields);
   result.campaignId = campaignId;
   return result;
 }

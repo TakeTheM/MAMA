@@ -20,7 +20,7 @@ function toPublishingError(error: unknown): PublishingError {
     // 게시 예정 시각 오류는 백엔드가 문자열로만 알려 주므로 칸을 직접 이어 준다.
     return new PublishingError("validation", text, field ?? (/게시 예정 시각/.test(text) ? "scheduledAt" : undefined));
   }
-  const code = error.kind === "not_found" ? "not_found" : error.kind === "forbidden" || error.kind === "unauthorized" ? "forbidden" : error.kind === "conflict" ? "conflict" : "network";
+  const code = error.kind === "not_found" ? "not_found" : error.kind === "unauthorized" ? "unauthorized" : error.kind === "forbidden" ? "forbidden" : error.kind === "conflict" ? "conflict" : "network";
   return new PublishingError(code, error.message);
 }
 

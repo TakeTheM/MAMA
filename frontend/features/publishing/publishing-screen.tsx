@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AppShell, DemoNotice } from "@/components/ui/app-shell";
 import { CampaignHeading as SharedHeading } from "@/components/ui/campaign-heading";
 import { ConfirmBox } from "@/components/ui/confirm-box";
+import { LoginAgainLink } from "@/components/ui/login-again-link";
 import { Icon } from "@/components/ui/icon";
 import { LoadGate } from "@/components/ui/load-gate";
 import { canceledFrom, money } from "@/lib/campaign-status";
@@ -178,7 +179,7 @@ function RecordsContent() {
 }
 function Feedback() {
   const { pending, error, notice } = usePublishingSession();
-  return <div className={styles.feedback}>{pending && <p role="status">기록을 저장하고 있습니다…</p>}{error && <p id="action-error" role="alert" className={styles.error}>{error.message}</p>}<p role="status" aria-live="polite" className={styles.success}>{notice}</p></div>;
+  return <div className={styles.feedback}>{pending && <p role="status">기록을 저장하고 있습니다…</p>}{error && <p id="action-error" role="alert" className={styles.error}>{error.message}{error.code === "unauthorized" && <> <LoginAgainLink className={styles.textLink} /></>}</p>}<p role="status" aria-live="polite" className={styles.success}>{notice}</p></div>;
 }
 function actorName(actor: string) { return actor === "seller-demo" ? "사장님" : actor; }
 function HistoryPanel({ campaign }: { campaign: Campaign }) {
