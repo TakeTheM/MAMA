@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     # 배포(https)에서는 true. 로컬 http에서는 false여야 쿠키가 저장된다
     cookie_secure: bool = False
     session_days: int = 7
-    # 마이그레이션 0005 전용: 소유자 없이 만든 예전 캠페인을 넘겨받을 셀러의 Google 이메일
+    # 마이그레이션 0006 전용: 소유자 없이 만든 예전 캠페인을 넘겨받을 셀러의 Google 이메일
     legacy_owner_email: str = ""
 
 

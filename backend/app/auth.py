@@ -20,7 +20,8 @@ import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
@@ -55,6 +56,9 @@ class GoogleIdentity(BaseModel):
     sub: str
     email: str
     name: str | None = None
+    # Google이 이 주소의 현재 소유권을 보증하는지 (gmail.com 주소이거나 Workspace 도메인 hd가 있음).
+    # 아니면 예전에 인증된 주소가 지금은 다른 사람 것일 수 있어 기존 계정에 자동 연결하지 않는다.
+    email_trusted: bool = False
 
 
 def verify_id_token(id_token: str, *, client_id: str, nonce: str, jwks: jwt.PyJWKClient) -> GoogleIdentity:
@@ -72,7 +76,9 @@ def verify_id_token(id_token: str, *, client_id: str, nonce: str, jwks: jwt.PyJW
     email = claims.get("email")
     if not email or claims.get("email_verified") is not True:
         raise OAuthError("email")
-    return GoogleIdentity(sub=str(claims["sub"]), email=email.strip().lower(), name=claims.get("name"))
+    email = email.strip().lower()
+    trusted = email.endswith("@gmail.com") or bool(claims.get("hd"))
+    return GoogleIdentity(sub=str(claims["sub"]), email=email, name=claims.get("name"), email_trusted=trusted)
 
 
 class GoogleOAuth:
@@ -176,22 +182,49 @@ def hash_token(token: str) -> str:
 
 
 def upsert_user(db: Session, identity: GoogleIdentity) -> User:
+    """Google 계정(sub)의 셀러를 찾거나 만든다. 동시 첫 로그인에서도 한 계정에 sub가 하나만 연결된다."""
     user = db.scalar(select(User).where(User.google_sub == identity.sub))
     if user is None:
-        # 같은 이메일의 예전 계정이 있으면 Google 계정과 연결한다 (Google이 인증한 이메일만 받는다).
         # 예전 계정은 대소문자가 섞여 저장됐을 수 있어 소문자로 비교한다.
-        user = db.scalar(
-            select(User).where(func.lower(User.email) == identity.email).order_by(User.id).limit(1)
+        existing_id = db.scalar(
+            select(User.id).where(func.lower(User.email) == identity.email).order_by(User.id).limit(1)
         )
-        if user is not None and user.google_sub is not None:
-            raise OAuthError("account")
-        if user is None:
-            user = User(email=identity.email, created_at=utcnow())
-            db.add(user)
-        user.google_sub = identity.sub
+        if existing_id is not None:
+            user = _link_existing(db, existing_id, identity)
+        else:
+            user = _create_user(db, identity)
     user.name = identity.name
     db.flush()
     return user
+
+
+def _link_existing(db: Session, user_id: int, identity: GoogleIdentity) -> User:
+    if not identity.email_trusted:
+        # 주소 소유권이 바뀌었을 수 있다. 메일함 확인 절차 없이 기존 캠페인을 넘기지 않는다.
+        raise OAuthError("link")
+    # 비어 있을 때만 채운다. 동시에 다른 sub가 연결하면 행 잠금 뒤 조건이 거짓이 되어 0행이 바뀐다.
+    db.execute(
+        update(User).where(User.id == user_id, User.google_sub.is_(None)).values(google_sub=identity.sub)
+        .execution_options(synchronize_session=False)
+    )
+    user = db.get(User, user_id, populate_existing=True)
+    if user is None or user.google_sub != identity.sub:
+        raise OAuthError("account")
+    return user
+
+
+def _create_user(db: Session, identity: GoogleIdentity) -> User:
+    try:
+        with db.begin_nested():
+            user = User(email=identity.email, google_sub=identity.sub, created_at=utcnow())
+            db.add(user)
+        return user
+    except IntegrityError:
+        # 같은 Google 계정의 동시 첫 로그인이 먼저 만들었으면 그 계정을 쓴다.
+        user = db.scalar(select(User).where(User.google_sub == identity.sub))
+        if user is None:
+            raise OAuthError("account") from None
+        return user
 
 
 def create_session(db: Session, user: User, settings: Settings) -> str:

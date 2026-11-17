@@ -19,11 +19,11 @@ def alembic_config(engine, owner_email=None):
     return config
 
 
-def test_0005_assigns_ownerless_campaigns_to_legacy_owner(api, mysql_engine):
-    command.downgrade(alembic_config(mysql_engine), "0004")
+def test_0006_assigns_ownerless_campaigns_to_legacy_owner(api, mysql_engine):
+    command.downgrade(alembic_config(mysql_engine), "0005")
     try:
         with Session(mysql_engine) as db:
-            # 0004 스키마에는 users.google_sub·name이 없어 사용자는 SQL로 넣는다.
+            # 0006 전 스키마에 맞춰 사용자는 SQL로 넣는다.
             db.execute(text(
                 "INSERT INTO users (email, password_hash, created_at) VALUES ('Old@Example.com', 'legacy', :now)"
             ), {"now": utcnow().replace(tzinfo=None)})
@@ -51,8 +51,8 @@ def test_0005_assigns_ownerless_campaigns_to_legacy_owner(api, mysql_engine):
         command.upgrade(alembic_config(mysql_engine, "cleanup@example.com"), "head")
 
 
-def test_0005_creates_legacy_owner_when_missing(api, mysql_engine):
-    command.downgrade(alembic_config(mysql_engine), "0004")
+def test_0006_creates_legacy_owner_when_missing(api, mysql_engine):
+    command.downgrade(alembic_config(mysql_engine), "0005")
     try:
         with Session(mysql_engine) as db:
             db.add(Campaign(

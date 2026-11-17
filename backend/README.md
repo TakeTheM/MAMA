@@ -41,9 +41,28 @@ Supabase Transaction pooler에는 `NullPool`과 `prepare_threshold=None`을 적�
 
 ### Vercel 배포
 
-백엔드 프로젝트의 Root Directory를 `backend`로 지정하고 Production의 `DATABASE_URL`에 백엔드가 사용할 PostgreSQL 주소를 설정합니다. 빌드 명령 재정의가 켜져 있다면 해제해 `pyproject.toml`의 빌드 스크립트가 실행되도록 합니다. 프로덕션 빌드는 앱 배포 전에 같은 DB에서 `alembic upgrade head`를 실행합니다. 스키마를 변경할 수 있는 DB 계정이 필요합니다.
+백엔드 프로젝트의 Root Directory를 `backend`로 지정하고 Production의 `DATABASE_URL`에 백엔드가 사용할 PostgreSQL 주소를 설정합니다. 빌드 명령 재정의가 켜져 있다면 해제해 `pyproject.toml`의 빌드 스크립트가 실행되도록 합니다. 프로덕션 빌드는 앱 배포 전에 같은 DB에서 예전 백엔드와 함께 써도 되는 리비전(기본 `0005`, `MIGRATION_TARGET`으로 변경)까지만 `alembic upgrade`를 실행합니다. 스키마를 변경할 수 있는 DB 계정이 필요합니다.
 
 프리뷰 빌드는 DB를 변경하지 않습니다. 프리뷰용 DB는 해당 환경의 `DATABASE_URL`을 지정한 뒤 `backend/`에서 `uv run alembic upgrade head`로 별도로 준비합니다. 이미 배포한 환경에서 `relation "campaigns" does not exist`가 발생하면, 해당 배포와 같은 DB 및 스키마에 마이그레이션을 적용하고 `GET /api/health/db`가 200을 반환하는지 확인합니다.
+
+### 배포 순서 (Google 로그인 도입)
+
+운영 빌드는 새 백엔드가 트래픽을 받기 전에 마이그레이션을 적용하므로, 예전(0004) 백엔드가 아직 동작하는 동안에도 쓰기가 실패하지 않도록 두 단계로 나눕니다.
+
+1. **확장(0005)**: 이 백엔드를 배포하면 빌드가 `0005`까지 적용합니다. `users.google_sub`·`name` 추가, `auth_sessions.token_hash` 이름 변경만 하며 캠페인 열 제약은 바꾸지 않아 0004 백엔드도 그대로 동작하고 앱만 롤백할 수 있습니다.
+2. **전환**: 로그인 화면이 있는 프론트와 새 백엔드가 함께 운영에 올라가 0004 백엔드가 더 이상 요청을 받지 않는지 확인합니다. 이 사이에 소유자 없이 남은 예전 캠페인은 새 백엔드에서 보이지 않습니다.
+3. **축소(0006)**: `backend/`에서 운영 `DATABASE_URL`로 직접 적용합니다. 소유자 없는 캠페인이 있으면 넘겨받을 셀러 이메일이 필요합니다. 이후에는 0004 백엔드로 되돌릴 수 없습니다.
+
+```bash
+LEGACY_OWNER_EMAIL='owner@gmail.com' uv run alembic upgrade 0006
+```
+
+적용 뒤 Vercel의 `MIGRATION_TARGET`을 `head`로 바꾸거나 `scripts/vercel-build.sh`의 기본값을 올립니다.
+
+### Google 로그인
+
+- 기존 셀러 계정(같은 이메일, `google_sub` 없음)과의 자동 연결은 Google이 주소 소유권을 보증할 때만 합니다: `@gmail.com` 주소이거나 ID 토큰에 Workspace 도메인(`hd`)이 있는 경우. 그 밖의 주소는 `/login?error=link`로 돌려보내며, 운영자가 소유권을 확인한 뒤 해당 계정의 `google_sub`를 직접 연결합니다.
+- 동시 첫 로그인에서도 한 계정에는 `google_sub`가 하나만 연결됩니다. 다른 Google 계정이 먼저 연결했으면 `/login?error=account`입니다.
 
 ### 캠페인 API
 
