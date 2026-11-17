@@ -6,14 +6,30 @@ from alembic import command
 from alembic.config import Config
 from dotenv import dotenv_values
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.auth import SESSION_COOKIE, create_session
 from app.config import Settings, get_settings
-from app.database import Base, get_db, make_engine, normalize_database_url
+from app.database import Base, get_db, make_engine, normalize_database_url, utcnow
+from app.models import User
 from main import app
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
+TEST_JWT_SECRET = "test-only-state-signing-secret-at-least-32-chars"
+
+
+def login(engine, settings, email: str) -> str:
+    """Google 로그인을 거친 것처럼 셀러와 세션을 DB에 만들고 세션 쿠키 값을 돌려준다."""
+    with Session(engine, expire_on_commit=False) as db:
+        user = db.scalar(select(User).where(User.email == email))
+        if user is None:
+            user = User(email=email, google_sub="google-" + email, name="셀러", created_at=utcnow())
+            db.add(user)
+            db.flush()
+        token = create_session(db, user, settings)
+        db.commit()
+    return token
 
 
 @pytest.fixture(scope="session")
@@ -54,13 +70,16 @@ def api(mysql_engine):
         with Session(mysql_engine, expire_on_commit=False) as session:
             yield session
 
-    settings = Settings(_env_file=None)
+    settings = Settings(_env_file=None, jwt_secret=TEST_JWT_SECRET)
     app.dependency_overrides[get_db] = db_override
     app.dependency_overrides[get_settings] = lambda: settings
     clients = []
 
-    def new_client():
+    def new_client(email: str | None = "seller@example.com"):
+        """email 셀러로 로그인한 클라이언트. 같은 email이면 같은 셀러, None이면 로그인하지 않는다."""
         client = TestClient(app)
+        if email is not None:
+            client.cookies.set(SESSION_COOKIE, login(mysql_engine, settings, email))
         clients.append(client)
         return client
 

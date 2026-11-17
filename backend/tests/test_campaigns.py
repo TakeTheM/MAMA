@@ -70,8 +70,7 @@ def test_full_normal_flow(client):
     history = client.get(path + "/history").json()
     assert [row["next_status"] for row in history] == ["기획중", "검수 대기", "승인됨", "게시 예약됨", "집행중", "종료"]
     assert history[0]["previous_status"] is None
-    assert all("changed_by" not in row for row in history)
-    assert "owner_id" not in ended.json()
+    assert len({row["changed_by"] for row in history}) == 1 and history[0]["changed_by"] == ended.json()["owner_id"]
     assert history == sorted(history, key=lambda row: (row["recorded_at"], row["id"]))
 
 
@@ -192,17 +191,25 @@ def test_schedule_rejects_non_iso_timestamp(client, value):
     assert client.post(f"{BASE}/{campaign_id}/schedule", json={"scheduled_at": value}).status_code == 422
 
 
-def test_shared_workspace_and_pagination(client, api):
+def test_owner_isolation_and_pagination(client, api):
     first, second = create(client), create(client)
-    other = api[0]()
-    listing = other.get(BASE, params={"limit": 1, "offset": 0}).json()
+    listing = client.get(BASE, params={"limit": 1, "offset": 0}).json()
     assert [item["id"] for item in listing["items"]] == [second]
-    assert other.get(BASE, params={"limit": 1, "offset": 1}).json()["items"][0]["id"] == first
-    assert other.get(f"{BASE}/{first}").status_code == 200
-    assert other.get(f"{BASE}/{first}/history").status_code == 200
-    assert other.patch(f"{BASE}/{first}", json={"content": "공유 캠페인 수정"}).status_code == 200
-    assert client.get(f"{BASE}/{first}").json()["content"] == "공유 캠페인 수정"
-    assert other.post("/api/v1/auth/login").status_code == 404
+    assert client.get(BASE, params={"limit": 1, "offset": 1}).json()["items"][0]["id"] == first
+
+    other = api[0]("other@example.com")
+    assert other.get(BASE).json()["items"] == []
+    for method, suffix, body in [
+        ("get", "", None), ("get", "/history", None), ("patch", "", {"content": "남의 캠페인 수정"}),
+        ("post", "/request-review", None), ("post", "/cancel", None), ("get", "/performance", None),
+    ]:
+        assert getattr(other, method)(f"{BASE}/{first}{suffix}", **({"json": body} if body else {})).status_code == 404
+    assert client.get(f"{BASE}/{first}").json()["status"] == "기획중"
+
+    anonymous = api[0](None)
+    assert anonymous.get(BASE).status_code == 401
+    assert anonymous.post(BASE, json=CAMPAIGN).status_code == 401
+    assert anonymous.get(f"{BASE}/{first}").status_code == 401
     assert client.get(f"{BASE}/9223372036854775807").status_code == 404
     for query in [{"limit": 101}, {"limit": 0}, {"offset": -1}]:
         assert client.get(BASE, params=query).status_code == 422
@@ -216,7 +223,7 @@ def test_history_failure_rolls_back_campaign_state(client, mysql_engine):
 
     event.listen(CampaignStatusHistory, "before_insert", fail_history)
     try:
-        with TestClient(app, raise_server_exceptions=False) as client:
+        with TestClient(app, raise_server_exceptions=False, cookies=client.cookies) as client:
             result = client.post(f"{BASE}/{campaign_id}/request-review")
             assert result.status_code == 500
     finally:
@@ -232,7 +239,7 @@ def test_history_failure_rolls_back_campaign_creation(client, mysql_engine):
 
     event.listen(CampaignStatusHistory, "before_insert", fail_history)
     try:
-        with TestClient(app, raise_server_exceptions=False) as client:
+        with TestClient(app, raise_server_exceptions=False, cookies=client.cookies) as client:
             assert client.post(BASE, json=CAMPAIGN).status_code == 500
     finally:
         event.remove(CampaignStatusHistory, "before_insert", fail_history)

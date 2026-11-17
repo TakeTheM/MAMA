@@ -72,6 +72,13 @@ class InputModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    email: str
+    name: str | None
+
+
 class CampaignCreate(ProductFields, InputModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -227,6 +234,7 @@ class PerformanceOut(PerformanceInput):
 class CampaignOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    owner_id: int
     content: str
     product_name: str | None
     product_description: str | None
@@ -266,5 +274,6 @@ class HistoryOut(BaseModel):
     campaign_id: int
     previous_status: CampaignStatus | None
     next_status: CampaignStatus
+    changed_by: int
     recorded_at: datetime
     snapshot: dict

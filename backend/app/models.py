@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, Integer, JSON, String, Text
+from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base, UTCDateTime, utcnow
@@ -23,24 +23,32 @@ class CampaignStatus(StrEnum):
     EVALUATED = "성과 평가 완료"
 
 
-# Legacy account tables are retained to preserve historical foreign keys.
 class User(Base):
+    """Google 계정으로 로그인한 셀러. password_hash는 예전 이메일 로그인 계정에만 남아 있다."""
+
     __tablename__ = "users"
-    __table_args__ = TABLE_OPTIONS
+    __table_args__ = (UniqueConstraint("google_sub", name="uq_users_google_sub"), TABLE_OPTIONS)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(254), unique=True)
-    password_hash: Mapped[str] = mapped_column(String(255))
+    password_hash: Mapped[str | None] = mapped_column(String(255))
+    google_sub: Mapped[str | None] = mapped_column(String(255))
+    name: Mapped[str | None] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class AuthSession(Base):
     __tablename__ = "auth_sessions"
-    __table_args__ = (Index("ix_auth_sessions_user_id", "user_id"), TABLE_OPTIONS)
+    __table_args__ = (
+        Index("ix_auth_sessions_user_id", "user_id"),
+        UniqueConstraint("token_hash", name="uq_auth_sessions_token_hash"),
+        TABLE_OPTIONS,
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    refresh_token_hash: Mapped[str] = mapped_column(String(64))
+    # 세션 쿠키 값의 SHA-256. 쿠키 원문은 저장하지 않는다.
+    token_hash: Mapped[str] = mapped_column(String(64))
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
     revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
@@ -65,7 +73,7 @@ class Campaign(Base):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     content: Mapped[str] = mapped_column(Text)
     product_name: Mapped[str | None] = mapped_column(String(200))
     product_description: Mapped[str | None] = mapped_column(Text)
@@ -100,6 +108,6 @@ class CampaignStatusHistory(Base):
     campaign_id: Mapped[int] = mapped_column(ForeignKey("campaigns.id"))
     previous_status: Mapped[str | None] = mapped_column(String(30))
     next_status: Mapped[str] = mapped_column(String(30))
-    changed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    changed_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     recorded_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     snapshot: Mapped[dict] = mapped_column(JSON)
