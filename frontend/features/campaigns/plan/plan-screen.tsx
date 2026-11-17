@@ -105,16 +105,16 @@ function PlanForm({ campaignId, initial }: { campaignId: string | null; initial:
         </section>
 
         <section className={ui.card} aria-labelledby="goal-title">
-          <h2 id="goal-title" className={ui.sectionTitle}><span className={ui.stepNo}>2</span>광고 목표</h2>
+          <h2 id="goal-title" className={ui.sectionTitle}><span className={ui.stepNo}>2</span>광고 목표 <small>1개만</small></h2>
           <fieldset className={ui.chips}><legend>광고 목표</legend>
-            {GOALS.map((goal) => <label key={goal} className={ui.chip}><input type="radio" name="goal" value={goal} checked={values.goal === goal} onChange={() => set("goal", goal)} />{goal}</label>)}
+            {GOALS.map((goal) => <label key={goal} className={ui.chip}><input type="radio" name="goal" value={goal} checked={values.goal === goal} onChange={() => set("goal", goal)} />{values.goal === goal && <Icon name="check" size={16} />}{goal}</label>)}
           </fieldset>
         </section>
 
         <section className={ui.card} aria-labelledby="channel-title">
           <h2 id="channel-title" className={ui.sectionTitle}><span className={ui.stepNo}>3</span>채널 <small>1개 이상</small></h2>
           <fieldset className={ui.chips} aria-describedby={fieldError("channels") ? "channels-error" : undefined}><legend>채널</legend>
-            {CHANNELS.map((channel) => <label key={channel} className={ui.chip}><input type="checkbox" checked={values.channels.includes(channel)} onChange={(event) => toggleChannel(channel, event.target.checked)} aria-invalid={fieldError("channels") ? true : undefined} />{channel}</label>)}
+            {CHANNELS.map((channel) => <label key={channel} className={ui.chip}><input type="checkbox" checked={values.channels.includes(channel)} onChange={(event) => toggleChannel(channel, event.target.checked)} aria-invalid={fieldError("channels") ? true : undefined} />{values.channels.includes(channel) && <Icon name="check" size={16} />}{channel}</label>)}
           </fieldset>
           {fieldError("channels") && <ErrorText id="channels-error">{fieldError("channels")}</ErrorText>}
         </section>
