@@ -40,6 +40,7 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
   const [newTag, setNewTag] = useState("");
   // 고친 채널을 다시 만들면 고친 내용이 사라지므로 그때만 한 번 더 묻는다.
   const [confirmRegenerate, setConfirmRegenerate] = useState<Channel | null>(null);
+  const [reviewing, setReviewing] = useState(false);
   const copy = drafts[active] ?? { caption: "", hashtags: [] };
   const dirty = channels.filter((channel) => JSON.stringify(drafts[channel]) !== JSON.stringify(campaign.drafts[channel]));
   const limit = CHANNEL_LIMITS[active];
@@ -110,15 +111,19 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
           <div className={styles.footerActions}>
             <button className={ui.secondary} type="button" disabled={session.pending || !dirty.length} onClick={() => void save()}>저장</button>
             <button className={ui.primary} type="button" disabled={session.pending} onClick={async () => {
+              setReviewing(true);
               const next = await session.run((api) => api.requestReview(campaign.id, drafts));
-              if (next) router.push(`/campaigns/${encodeURIComponent(campaign.id)}/review`);
-            }}>{session.pending ? "요청 중…" : "검수 요청"}</button>
+              if (next) { router.push(`/campaigns/${encodeURIComponent(campaign.id)}/review`); return; }
+              setReviewing(false);
+            }}>{reviewing ? "검수 중…" : "검수 요청"}</button>
           </div>
         </div>
         {confirmRegenerate === active && <ConfirmBox id="regenerate" title={`${active} 초안을 다시 만들까요?`} confirmLabel="다시 만들기" onCancel={() => setConfirmRegenerate(null)} onConfirm={() => void regenerate(active)}>
           이 채널에서 고친 내용은 사라지고 새 초안으로 바뀌어요.
         </ConfirmBox>}
-        <p className={ui.help}>검수 요청은 자동으로 되지 않아요. 문구를 확인한 뒤 직접 눌러 주세요.</p>
+        {reviewing
+          ? <p role="status" className={ui.help}>AI가 위험 표현을 검수하고 있어요. 끝나면 검수 결과 화면으로 넘어가요.</p>
+          : <p className={ui.help}>검수 요청은 자동으로 되지 않아요. 문구를 확인한 뒤 직접 눌러 주세요.</p>}
         <Feedback pending={session.pending} error={session.error} notice={session.notice} />
       </div>
     </section>

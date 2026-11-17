@@ -3,7 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { CampaignApiProvider } from "../features/campaigns/api-context";
 import { createMockCampaignApi } from "../features/campaigns/mock-api";
 import type { RiskFinding } from "../features/campaigns/model";
-import { ReviewScreen, applyFinding, canApply } from "../features/campaigns/review/review-screen";
+import { REVIEW_POLL_MS, ReviewScreen, applyFinding, canApply } from "../features/campaigns/review/review-screen";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace: vi.fn() }) }));
@@ -133,3 +133,20 @@ test("제안을 적용한 뒤 다른 화면으로 가려 하면 다시 검수 �
   expect(screen.getByRole("alertdialog", { name: "고친 내용이 저장되지 않았어요" })).toBeDefined();
   expect(push).not.toHaveBeenCalled();
 });
+
+test("다른 곳에서 요청한 검수가 진행 중이면 새로고침하지 않아도 끝나는 대로 결과를 보여 준다", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    const api = createMockCampaignApi({ delay: 0 });
+    const base = await api.getCampaign("a");
+    let calls = 0;
+    const polling = { ...api, getCampaign: async (id: string) => (++calls === 1 ? { ...base, reviewPending: true, canApprove: false } : api.getCampaign(id)) };
+    render(<CampaignApiProvider api={polling}><ReviewScreen campaignId="a" /></CampaignApiProvider>);
+    expect(await screen.findByText("검수하고 있어요")).toBeDefined();
+    await vi.advanceTimersByTimeAsync(REVIEW_POLL_MS);
+    expect(await screen.findByText("위험 표현 2개를 찾았어요")).toBeDefined();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+

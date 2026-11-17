@@ -70,8 +70,9 @@ function PlanForm({ campaignId, initial }: { campaignId: string | null; initial:
       setSavedId(saved.id);
       if (kind === "draft") { router.push(`/campaigns/${encodeURIComponent(saved.id)}/draft`); return; }
       setNotice("임시 저장했어요. 목록에서 이어서 쓸 수 있어요.");
-      // 새 캠페인이면 주소를 바꾸는 동안 버튼을 꺼 둔다.
-      if (!savedId) { router.replace(`/campaigns/${encodeURIComponent(saved.id)}/plan`); return; }
+      // 새 캠페인이면 주소만 이 캠페인으로 바꾼다. router.replace를 쓰면 다른 화면으로 다시 그려져서
+      // 입력칸이 깜빡이고 '임시 저장했어요' 안내가 사라진다. 새로고침하면 이 주소의 기획 화면이 열린다.
+      if (!savedId) window.history.replaceState(null, "", `/campaigns/${encodeURIComponent(saved.id)}/plan`);
       setPending(null);
     } catch (failure) {
       const error = asApiError(failure);

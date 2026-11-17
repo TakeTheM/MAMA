@@ -12,16 +12,24 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 test("임시 저장 직후 다시 저장하거나 초안을 만들어도 캠페인이 하나만 생긴다", async () => {
   const api = createMockCampaignApi({ delay: 0 });
   const savePlan = vi.spyOn(api, "savePlan");
+  const generateDraft = vi.spyOn(api, "generateDraft");
   render(<CampaignApiProvider api={api}><NewCampaignScreen /></CampaignApiProvider>);
   fireEvent.change(screen.getByLabelText("상품명"), { target: { value: "보리 쿠키" } });
   fireEvent.click(screen.getByRole("button", { name: "임시 저장" }));
-  await waitFor(() => expect(replace).toHaveBeenCalledWith("/campaigns/new-1/plan"));
+  // 저장하는 동안에는 버튼을 꺼서 두 번 눌러도 한 번만 보낸다.
   const save = screen.getByRole("button", { name: "저장 중…" }) as HTMLButtonElement;
   expect(save.disabled).toBe(true);
   expect((screen.getByRole("button", { name: "초안 만들기" }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.click(save);
-  fireEvent.click(screen.getByRole("button", { name: "초안 만들기" }));
   expect(savePlan).toHaveBeenCalledOnce();
+  await screen.findByText("임시 저장했어요. 목록에서 이어서 쓸 수 있어요.");
+  // 저장한 뒤 다시 저장하고 초안을 만들어도 같은 캠페인을 쓴다.
+  fireEvent.click(screen.getByRole("button", { name: "임시 저장" }));
+  await screen.findByRole("button", { name: "임시 저장" });
+  fireEvent.click(screen.getByRole("button", { name: "초안 만들기" }));
+  await waitFor(() => expect(generateDraft).toHaveBeenCalledOnce());
+  expect(generateDraft.mock.calls[0][0]).toBe("new-1");
+  expect(savePlan.mock.calls.map(([id]) => id)).toEqual([null, "new-1"]);
   expect((await api.listCampaigns()).filter((item) => item.id.startsWith("new-"))).toHaveLength(1);
 });
 

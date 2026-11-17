@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import { AppShell } from "@/components/ui/app-shell";
 import { Icon } from "@/components/ui/icon";
 import { UnsavedGuard } from "@/components/ui/unsaved-guard";
@@ -30,6 +30,8 @@ export function ReviewScreen({ campaignId }: { campaignId: string }) {
 }
 
 type Session = ReturnType<typeof useCampaign>;
+/** 검수가 아직 끝나지 않았을 때 결과를 다시 확인하는 간격 */
+export const REVIEW_POLL_MS = 3000;
 
 /** 버튼 한 번으로 고칠 수 있는 경고인가 (바꿀 문구가 있거나, 광고 표시 누락이라 #광고를 붙이면 되는 경우) */
 export function canApply(finding: RiskFinding) {
@@ -70,6 +72,14 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
   const [active, setActive] = useState<Channel>(() => open[0]?.channel ?? channels[0]);
   const [editing, setEditing] = useState(false);
   const [confirmApprove, setConfirmApprove] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const { refresh } = session;
+  // 다른 곳에서 요청한 검수가 진행 중이면 사장님이 새로고침하지 않아도 끝나는 대로 결과를 보여 준다.
+  useEffect(() => {
+    if (!campaign.reviewPending) return;
+    const timer = setInterval(refresh, REVIEW_POLL_MS);
+    return () => clearInterval(timer);
+  }, [campaign.reviewPending, refresh]);
   const copy = drafts[active] ?? { caption: "", hashtags: [] };
   const findings = allFindings.filter((finding) => finding.channel === active);
   const changed = JSON.stringify(drafts) !== JSON.stringify(campaign.drafts);
@@ -82,7 +92,9 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
     if (next) router.push(`/campaigns/${encodeURIComponent(campaign.id)}/publishing/schedule`);
   }
   async function rereview() {
+    setReviewing(true);
     const next = await session.run((api) => api.requestReview(campaign.id, changed ? drafts : undefined));
+    setReviewing(false);
     if (!next) return;
     setEditing(false);
     setActive(next.findings[0]?.channel ?? active);
@@ -136,7 +148,7 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
             ? <span id="approve-hint" className={ui.help} aria-live="polite"><strong>고친 문구로 다시 검수를 요청해 주세요</strong> 고친 내용은 아직 저장 전이에요. ‘다시 검수 요청’을 누르면 저장하고 검수해요.</span>
             : <span id="approve-hint" className={ui.help}>{approveHint(campaign, canApprove, open.length)}</span>}
           {!confirmApprove && <button type="button" className={`${ui.secondary} ${ui.off}`} disabled={!canApprove || session.pending} aria-describedby="approve-hint" onClick={() => (open.length ? setConfirmApprove(true) : void approve())}>승인</button>}
-          {(campaign.allowedActions.includes("request-review") || changed) && <button type="button" className={ui.primary} disabled={session.pending || !campaign.allowedActions.includes("request-review")} onClick={() => { setConfirmApprove(false); void rereview(); }}>{session.pending ? "요청 중…" : "다시 검수 요청"}</button>}
+          {(campaign.allowedActions.includes("request-review") || changed) && <button type="button" className={ui.primary} disabled={session.pending || !campaign.allowedActions.includes("request-review")} onClick={() => { setConfirmApprove(false); void rereview(); }}>{reviewing ? "검수 중…" : "다시 검수 요청"}</button>}
         </div>
         {confirmApprove && <div className={ui.confirm} role="alertdialog" aria-labelledby="approve-title" aria-describedby="approve-desc">
           <div><strong id="approve-title">경고 {open.length}개가 남아 있어요. 이대로 승인할까요?</strong><p id="approve-desc">승인한 계정과 시각이 상태 기록에 남아요. 위험 표현을 확인한 뒤 결정해 주세요.</p></div>
@@ -145,6 +157,7 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
             <button type="button" className={`${ui.primary} ${ui.small}`} disabled={session.pending} onClick={() => void approve()}>그대로 승인</button>
           </div>
         </div>}
+        {reviewing && <p role="status" className={ui.help}>AI가 문구를 다시 검수하고 있어요. 끝나면 이 화면에 결과가 바로 나와요.</p>}
         {localError && <p role="alert" className={ui.error}>{localError}</p>}
         <Feedback pending={session.pending} error={session.error} notice={session.notice} />
       </section>
@@ -158,7 +171,7 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
 }
 
 function ResultBanner({ campaign, openCount }: { campaign: Campaign; openCount: number }) {
-  if (campaign.reviewPending) return <Banner tone="alert" title="검수하고 있어요"><span>잠시 뒤 새로고침해 주세요.</span></Banner>;
+  if (campaign.reviewPending) return <Banner tone="alert" title="검수하고 있어요"><span>끝나면 자동으로 결과를 보여 드려요. 새로고침하지 않아도 돼요.</span></Banner>;
   if (campaign.rejectionReason && campaign.status === "수정 요청") {
     return <Banner tone="alert" title="플랫폼에서 반려된 광고예요">
       <span>반려 사유: {campaign.rejectionReason}</span>
@@ -171,7 +184,7 @@ function ResultBanner({ campaign, openCount }: { campaign: Campaign; openCount: 
     return <Banner tone="alert" title={`위험 표현 ${openCount}개를 찾았어요`}><span>고쳐 쓴 문장을 적용하거나 직접 고치는 걸 권해요. 내용을 확인했다면 그대로 승인할 수도 있어요.</span></Banner>;
   }
   if (campaign.canApprove) return <Banner tone="ok" title="위험 표현이 없어요"><span>문구를 한 번 더 확인하고 ‘승인’을 눌러 주세요. AI 검수만으로는 승인되지 않아요.</span></Banner>;
-  return <Banner tone="alert" title="검수 결과를 기다리고 있어요"><span>잠시 뒤 새로고침해 주세요.</span></Banner>;
+  return <Banner tone="alert" title="검수 결과를 기다리고 있어요"><span>결과가 나오면 자동으로 보여 드려요.</span></Banner>;
 }
 function approveHint(campaign: Campaign, canApprove: boolean, openCount: number) {
   if (canApprove) return openCount ? `경고 ${openCount}개를 확인했다면 그대로 승인할 수 있어요` : "위험 표현이 없어요. 문구를 확인하고 승인해 주세요.";

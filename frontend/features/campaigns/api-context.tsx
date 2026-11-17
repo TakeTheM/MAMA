@@ -69,6 +69,11 @@ export function useCampaign(id: string) {
     }
   }, [api, id]);
 
+  /** 화면을 '불러오는 중'으로 바꾸지 않고 최신 상태만 다시 읽는다. 실패하면 지금 화면을 그대로 둔다(자동 확인용). */
+  const refresh = useCallback(() => {
+    api.getCampaign(id).then((data) => { if (mounted.current && !lock.current) setCampaign(data); }).catch(() => undefined);
+  }, [api, id]);
+
   const clearError = useCallback(() => setError(null), []);
-  return { api, campaign, loadError, error, pending, notice, reload, run, clearError };
+  return { api, campaign, loadError, error, pending, notice, reload, refresh, run, clearError };
 }
