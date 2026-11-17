@@ -182,3 +182,26 @@ test("금액에 쉼표를 써도 저장하고, 지난 시각은 저장 전에 �
   await waitFor(() => expect(push).toHaveBeenCalledOnce());
   expect(mutate.mock.calls[0][1]).toMatchObject({ action: "schedule", schedule: { amount: 50000 } });
 });
+
+test("쉼표 위치가 틀린 금액·기간은 다른 숫자로 저장하지 않고 저장 전에 알려 준다", async () => {
+  const adapter = createMockAdapter({ delay: 0 });
+  const mutate = vi.spyOn(adapter, "mutate");
+  render(<Harness adapter={adapter} />);
+  const amount = await screen.findByLabelText("금액 (원)") as HTMLInputElement;
+  fillPlan(48);
+  fireEvent.change(amount, { target: { value: "50,00" } });
+  fireEvent.change(screen.getByLabelText("기간 (일)"), { target: { value: "1,5" } });
+  expect(screen.getAllByText("쉼표는 세 자리마다 넣어 주세요. 예: 50,000")).toHaveLength(2);
+  expect(amount.getAttribute("aria-invalid")).toBe("true");
+  expect(amount.getAttribute("aria-describedby")).toBe("amount-format");
+  const save = screen.getByRole("button", { name: "게시 예약" }) as HTMLButtonElement;
+  expect(save.disabled).toBe(true);
+  fireEvent.submit(save.closest("form") as HTMLFormElement);
+  expect(mutate).not.toHaveBeenCalled();
+  fireEvent.change(amount, { target: { value: "50,000" } });
+  fireEvent.change(screen.getByLabelText("기간 (일)"), { target: { value: "5" } });
+  fireEvent.click(save);
+  await waitFor(() => expect(push).toHaveBeenCalledOnce());
+  expect(mutate.mock.calls[0][1]).toMatchObject({ schedule: { amount: 50000, days: 5 } });
+});
+

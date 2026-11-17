@@ -10,6 +10,7 @@ import { UnsavedGuard } from "@/components/ui/unsaved-guard";
 import ui from "@/components/ui/ui.module.css";
 import { type Channel, campaignPath } from "@/lib/campaign-status";
 import { useCampaign } from "../api-context";
+import { LENGTH_RULE, channelLength } from "../channel-length";
 import { type Campaign, type ChannelCopy, CHANNEL_LIMITS } from "../model";
 import { Feedback, Heading, LoadGate, WrongStage } from "../shared";
 import styles from "./draft.module.css";
@@ -44,8 +45,9 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
   const copy = drafts[active] ?? { caption: "", hashtags: [] };
   const dirty = channels.filter((channel) => JSON.stringify(drafts[channel]) !== JSON.stringify(campaign.drafts[channel]));
   const limit = CHANNEL_LIMITS[active];
+  const length = channelLength(active, copy);
   // 글자 수를 넘긴 채널이 있으면 검수 요청을 막는다(플랫폼에 올릴 수 없는 문구라서).
-  const overLimit = channels.filter((channel) => (drafts[channel]?.caption.length ?? 0) > CHANNEL_LIMITS[channel]);
+  const overLimit = channels.filter((channel) => channelLength(channel, drafts[channel] ?? { caption: "", hashtags: [] }) > CHANNEL_LIMITS[channel]);
   const update = (next: Partial<ChannelCopy>) => setDrafts((current) => ({ ...current, [active]: { ...copy, ...next } }));
 
   function addTag() {
@@ -93,9 +95,9 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
 
       <div id="draft-panel" role="tabpanel" aria-labelledby={`tab-${active}`} className={ui.stack}>
         <div>
-          <div className={styles.labelRow}><label htmlFor="caption">캡션</label><span className={styles.counter} data-over={copy.caption.length > limit}>{copy.caption.length.toLocaleString("ko-KR")} / {limit.toLocaleString("ko-KR")}자</span></div>
+          <div className={styles.labelRow}><label htmlFor="caption">캡션</label><span className={styles.counter} data-over={length > limit}>{length.toLocaleString("ko-KR")} / {limit.toLocaleString("ko-KR")}자</span></div>
           <textarea id="caption" rows={8} className={styles.caption} value={copy.caption} disabled={session.pending} onChange={(event) => update({ caption: event.target.value })} aria-invalid={session.error?.fields.caption && !copy.caption.trim() ? true : undefined} aria-describedby="caption-help" />
-          <p id="caption-help" className={ui.help}>{copy.caption.length > limit ? `${active} 글자 수 제한을 넘었어요. 줄여 주세요.` : "AI가 만든 초안이에요. 바로 고쳐 쓸 수 있어요."}</p>
+          <p id="caption-help" className={ui.help}>{length > limit ? `${active} 글자 수 제한을 넘었어요. 줄여 주세요.` : "AI가 만든 초안이에요. 바로 고쳐 쓸 수 있어요."} {LENGTH_RULE[active]}</p>
         </div>
 
         <div>
@@ -123,7 +125,7 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
         {confirmRegenerate === active && <ConfirmBox id="regenerate" title={`${active} 초안을 다시 만들까요?`} confirmLabel="다시 만들기" onCancel={() => setConfirmRegenerate(null)} onConfirm={() => void regenerate(active)}>
           이 채널에서 고친 내용은 사라지고 새 초안으로 바뀌어요.
         </ConfirmBox>}
-        {overLimit.length > 0 && !reviewing && <p id="over-limit" className={ui.fieldError}><Icon name="alert" size={16} />{overLimit.join(", ")} 캡션이 글자 수 제한을 넘었어요. 줄여야 검수를 요청할 수 있어요.</p>}
+        {overLimit.length > 0 && !reviewing && <p id="over-limit" className={ui.fieldError}><Icon name="alert" size={16} />{overLimit.join(", ")} 게시물(캡션+해시태그)이 글자 수 제한을 넘었어요. 줄여야 검수를 요청할 수 있어요.</p>}
         {reviewing
           ? <p role="status" className={ui.help}>AI가 위험 표현을 검수하고 있어요. 끝나면 검수 결과 화면으로 넘어가요.</p>
           : <p className={ui.help}>검수 요청은 자동으로 되지 않아요. 문구를 확인한 뒤 직접 눌러 주세요.</p>}

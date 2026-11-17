@@ -9,6 +9,7 @@ import { ConfirmBox } from "@/components/ui/confirm-box";
 import { Icon } from "@/components/ui/icon";
 import { LoadGate } from "@/components/ui/load-gate";
 import { canceledFrom, money } from "@/lib/campaign-status";
+import { numberFormatError, parseNumberInput } from "@/lib/number-input";
 import ui from "@/components/ui/ui.module.css";
 import { type Campaign, REVIEW_WARNING, formatTime, fromSeoulInput } from "./model";
 import { SCENARIOS, type Scenario } from "./mock-adapter";
@@ -65,11 +66,15 @@ function ScheduleForm({ campaign }: { campaign: Campaign }) {
   const nearReview = difference >= 0 && difference < 24 * 3600000;
   // 지난 시각은 저장 전에 바로 알려 준다(서버도 다시 확인한다).
   const past = Boolean(iso) && difference < 0;
-  const invalid = (field: string) => error?.field === field || (field === "scheduledAt" && past);
-  const toNumber = (value: string) => { const plain = value.replace(/,/g, "").trim(); return plain ? Number(plain) : NaN; };
+  // 쉼표 위치가 틀린 금액·기간(50,00 / 1,5)은 다른 숫자로 저장되지 않게 저장 전에 막는다.
+  const formatError = { amount: numberFormatError(amount), days: numberFormatError(days) };
+  const invalid = (field: string) => error?.field === field || (field === "scheduledAt" && past) || Boolean(formatError[field as keyof typeof formatError]);
+  const describe = (field: "amount" | "days") => [formatError[field] ? `${field}-format` : "", error?.field === field ? "action-error" : ""].filter(Boolean).join(" ") || undefined;
+  const blocked = past || Boolean(formatError.amount || formatError.days);
+  const toNumber = (value: string) => parseNumberInput(value) ?? NaN;
   return <form noValidate className={styles.stack} onSubmit={async (event) => {
     event.preventDefault();
-    if (past) return;
+    if (blocked) return;
     const success = await mutate({ action: "schedule", schedule: { scheduledAt: iso, amount: toNumber(amount), days: toNumber(days) } });
     if (success) router.push(recordsPath(campaign.id));
   }}>
@@ -84,11 +89,13 @@ function ScheduleForm({ campaign }: { campaign: Campaign }) {
     </section>
     <section className={styles.card} aria-labelledby="budget-title"><div className={styles.cardTitle}><h2 id="budget-title">예산</h2><p className={styles.help}>기획할 때 넣은 예산을 불러왔어요</p></div>
       <fieldset disabled={pending} className={styles.inputGrid}>
-        <div><label htmlFor="budget-amount">금액 (원)</label><input id="budget-amount" type="text" inputMode="numeric" placeholder="예: 50,000" value={amount} onChange={(event) => setAmount(event.target.value)} aria-invalid={invalid("amount")} aria-describedby={invalid("amount") ? "action-error" : undefined} required /></div>
-        <div><label htmlFor="budget-days">기간 (일)</label><input id="budget-days" type="text" inputMode="numeric" placeholder="예: 7" value={days} onChange={(event) => setDays(event.target.value)} aria-invalid={invalid("days")} aria-describedby={invalid("days") ? "action-error" : undefined} required /></div>
+        <div><label htmlFor="budget-amount">금액 (원)</label><input id="budget-amount" type="text" inputMode="numeric" placeholder="예: 50,000" value={amount} onChange={(event) => setAmount(event.target.value)} aria-invalid={invalid("amount")} aria-describedby={describe("amount")} required />
+          {formatError.amount && <p id="amount-format" className={ui.fieldError}><Icon name="alert" size={16} />{formatError.amount}</p>}</div>
+        <div><label htmlFor="budget-days">기간 (일)</label><input id="budget-days" type="text" inputMode="numeric" placeholder="예: 7" value={days} onChange={(event) => setDays(event.target.value)} aria-invalid={invalid("days")} aria-describedby={describe("days")} required />
+          {formatError.days && <p id="days-format" className={ui.fieldError}><Icon name="alert" size={16} />{formatError.days}</p>}</div>
       </fieldset>
     </section>
-    <div className={styles.saveRow}><p className={styles.help}>{MANUAL_NOTICE}</p><button className={styles.primary} type="submit" disabled={pending || past}>{pending ? "저장 중…" : "게시 예약"}</button></div>
+    <div className={styles.saveRow}><p className={styles.help}>{MANUAL_NOTICE}</p><button className={styles.primary} type="submit" disabled={pending || blocked}>{pending ? "저장 중…" : "게시 예약"}</button></div>
     <Feedback />
   </form>;
 }
