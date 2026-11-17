@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { AppShell } from "@/components/ui/app-shell";
+import { ConfirmBox } from "@/components/ui/confirm-box";
 import { Icon } from "@/components/ui/icon";
 import ui from "@/components/ui/ui.module.css";
 import { campaignPath, money } from "@/lib/campaign-status";
@@ -37,6 +38,7 @@ const fromSaved = (campaign: Campaign): PerformanceInput => {
 
 function PerformanceBody({ campaign, session }: { campaign: Campaign; session: Session }) {
   const [values, setValues] = useState<PerformanceInput>(() => fromSaved(campaign));
+  const [confirmComplete, setConfirmComplete] = useState(false);
   const editable = campaign.allowedActions.includes("submit-performance");
   const p = campaign.performance;
   const fieldError = (key: PerformanceField) => session.error?.fields[key];
@@ -79,10 +81,15 @@ function PerformanceBody({ campaign, session }: { campaign: Campaign; session: S
         </> : !p?.summaryError && <p className={ui.help}>성과 숫자를 넣고 ‘요약 만들기’를 누르면 이번 광고로 수익이 났는지 쉬운 말로 알려 드려요. 숫자는 시스템이 계산한 값을 그대로 보여 줘요.</p>}
       </article>
 
-      {campaign.status === "종료" ? <div className={ui.actionsSplit}>
-        <span className={ui.help}>평가를 완료하면 이 문구와 성과가 다음 캠페인 초안에 반영돼요.</span>
-        <button type="button" className={ui.primary} disabled={session.pending || !campaign.allowedActions.includes("complete-evaluation")} onClick={() => void session.run((api) => api.completeEvaluation(campaign.id), "평가를 완료했어요. 다음 초안에 반영돼요.")}>평가 완료</button>
-      </div> : <div className={ui.approval}><Icon name="check" /><span>평가를 마친 캠페인이에요. 다음 캠페인 초안을 만들 때 참고해요. <Link className={ui.textLink} href="/campaigns/new">새 캠페인 만들기</Link></span></div>}
+      {campaign.status === "종료" ? confirmComplete
+        ? <ConfirmBox id="complete" title="평가를 완료할까요?" confirmLabel="평가 완료하기" pendingLabel="완료하는 중…" pending={session.pending} onCancel={() => setConfirmComplete(false)}
+          onConfirm={async () => { if (await session.run((api) => api.completeEvaluation(campaign.id), "평가를 완료했어요. 다음 초안에 반영돼요.")) setConfirmComplete(false); }}>
+          완료하면 성과 숫자와 요약을 더 고칠 수 없어요. 이 문구와 성과는 다음 캠페인 초안에 참고돼요.
+        </ConfirmBox>
+        : <div className={ui.actionsSplit}>
+          <span className={ui.help}>평가를 완료하면 이 문구와 성과가 다음 캠페인 초안에 반영돼요.</span>
+          <button type="button" className={ui.primary} disabled={session.pending || !campaign.allowedActions.includes("complete-evaluation")} onClick={() => setConfirmComplete(true)}>평가 완료</button>
+        </div> : <div className={ui.approval}><Icon name="check" /><span>평가를 마친 캠페인이에요. 다음 캠페인 초안을 만들 때 참고해요. <Link className={ui.textLink} href="/campaigns/new">새 캠페인 만들기</Link></span></div>}
     </section>
   </div>;
 }

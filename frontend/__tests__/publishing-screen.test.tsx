@@ -31,7 +31,16 @@ test("예약 성공 후 기록 경로로 이동하고 두 화면 사이 데이�
   await waitFor(() => expect(push).toHaveBeenCalledWith("/campaigns/demo/publishing"));
   view.rerender(<Harness mode="records" adapter={adapter} />);
   fireEvent.click(await screen.findByRole("button", { name: "게시함" }));
+  // 한 번 더 묻기 전에는 기록하지 않는다.
+  expect(screen.getByRole("alertdialog", { name: "플랫폼에 올린 게 맞나요?" })).toBeDefined();
+  expect(screen.queryByText(/집행중 상태로 기록했습니다/)).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "돌아가기" }));
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(screen.getByRole("button", { name: "게시함" })).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "게시함" }));
+  fireEvent.click(screen.getByRole("button", { name: "게시함으로 기록" }));
   fireEvent.click(await screen.findByRole("button", { name: "종료 기록" }));
+  fireEvent.click(screen.getByRole("button", { name: "종료로 기록" }));
   expect(await screen.findByText(/광고 집행 기록을 마쳤습니다/)).toBeDefined();
   expect(screen.getByText("4건")).toBeDefined();
   view.rerender(<Harness mode="schedule" adapter={adapter} />);

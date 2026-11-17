@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { AppShell, DemoNotice } from "@/components/ui/app-shell";
 import { CampaignHeading as SharedHeading } from "@/components/ui/campaign-heading";
+import { ConfirmBox } from "@/components/ui/confirm-box";
 import { Icon } from "@/components/ui/icon";
 import { LoadGate } from "@/components/ui/load-gate";
 import { canceledFrom, money } from "@/lib/campaign-status";
@@ -105,17 +106,27 @@ export function RecordsScreen() {
 function RecordsContent() {
   const { campaign, pending, error, warning, mutate } = usePublishingSession();
   const [reason, setReason] = useState("");
+  // 게시함·종료는 누르면 시각이 기록되고 되돌릴 수 없어서 한 번 더 묻는다.
+  const [confirming, setConfirming] = useState<"publish" | "end" | null>(null);
   if (!campaign) return null;
+  const record = async (action: "publish" | "end") => { if (await mutate({ action })) setConfirming(null); };
   const can = (action: "schedule" | "publish" | "end" | "reject" | "revise") => campaign.allowedActions.includes(action);
   return <div className={styles.columns}>
     <section className={styles.stack} aria-label="지금 할 일" aria-busy={pending}>
       <div className={styles.recordIntro}><h2>{can("publish") ? "플랫폼에 올리셨나요?" : "게시·종료 기록"}</h2><p>예약 시각: {formatTime(campaign.schedule?.scheduledAt)} · {campaign.channels.join(", ")}</p></div>
       {warning && <ReviewWarning />}
       {can("schedule") && <section className={styles.card}><h2>게시 계획을 먼저 정해 주세요</h2><p className={styles.help}>게시 예정 시각과 예산을 저장한 뒤 게시함·반려를 기록할 수 있습니다.</p><Link className={styles.primary} href={schedulePath(campaign.id)}>게시 시각·예산 정하기</Link></section>}
-      {can("publish") && <section className={`${styles.card} ${styles.featured} ${styles.publishCard}`}><div><h3>올렸어요</h3><p>누른 시각이 게시 시각으로 기록되고 ‘집행중’이 돼요.</p></div><button className={styles.primary} disabled={pending} onClick={() => void mutate({ action: "publish" })}>게시함</button></section>}
+      {can("publish") && <section className={`${styles.card} ${styles.featured} ${styles.publishCard}`}><div><h3>올렸어요</h3><p>누른 시각이 게시 시각으로 기록되고 ‘집행중’이 돼요.</p></div>{confirming !== "publish" && <button className={styles.primary} disabled={pending} onClick={() => setConfirming("publish")}>게시함</button>}</section>}
+      {can("publish") && confirming === "publish" && <ConfirmBox id="publish" title="플랫폼에 올린 게 맞나요?" confirmLabel="게시함으로 기록" pendingLabel="기록 중…" pending={pending} onCancel={() => setConfirming(null)} onConfirm={() => void record("publish")}>
+        지금 시각이 게시 시각으로 남고 ‘집행중’이 돼요. 기록한 뒤에는 되돌릴 수 없어요.
+      </ConfirmBox>}
       {can("reject") && <form className={styles.card} noValidate onSubmit={(event) => { event.preventDefault(); void mutate({ action: "reject", reason }); }}><div><h3>플랫폼에서 반려됐어요</h3><p>반려 사유를 남기면 ‘다시 고치기’ 후에도 함께 확인할 수 있어요.</p></div><div><label htmlFor="rejection-reason">반려 사유 <span className={styles.optional}>(필수)</span></label><textarea id="rejection-reason" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="플랫폼이 알려 준 사유를 그대로 붙여 넣어 주세요" disabled={pending} aria-invalid={error?.field === "reason"} aria-describedby={error?.field === "reason" ? "action-error" : undefined} required /></div><div className={styles.alignRight}><button className={styles.secondary} disabled={pending}>반려 기록</button></div></form>}
       {can("publish") && <div className={styles.dashed}><Icon name="info" /><p>‘집행중’이 되면 종료 버튼이 나와요. 플랫폼에서 광고가 끝난 뒤 눌러서 기록해 주세요.</p></div>}
-      {can("end") && <section className={`${styles.card} ${styles.featured}`}><h3>광고가 끝났어요</h3><p>플랫폼에서 광고를 종료한 뒤 기록해 주세요. 기간이 지나도 자동 종료되지 않습니다.</p><div className={styles.alignRight}><button className={styles.primary} disabled={pending} onClick={() => void mutate({ action: "end" })}>종료 기록</button></div></section>}
+      {can("end") && <section className={`${styles.card} ${styles.featured}`}><h3>광고가 끝났어요</h3><p>플랫폼에서 광고를 종료한 뒤 기록해 주세요. 기간이 지나도 자동 종료되지 않습니다.</p>{confirming === "end"
+        ? <ConfirmBox id="end" title="광고를 종료로 기록할까요?" confirmLabel="종료로 기록" pendingLabel="기록 중…" pending={pending} onCancel={() => setConfirming(null)} onConfirm={() => void record("end")}>
+          플랫폼에서 광고를 끝냈는지 먼저 확인해 주세요. 종료로 기록하면 다시 ‘집행중’으로 돌릴 수 없어요.
+        </ConfirmBox>
+        : <div className={styles.alignRight}><button className={styles.primary} disabled={pending} onClick={() => setConfirming("end")}>종료 기록</button></div>}</section>}
       {campaign.rejectionReason && <section className={styles.card}><h3>플랫폼 반려 사유</h3><p className={styles.reason}>{campaign.rejectionReason}</p>{can("revise") && <div className={styles.alignRight}><button className={styles.primary} disabled={pending} onClick={() => void mutate({ action: "revise" })}>다시 고치기</button></div>}</section>}
       {campaign.status === "수정 요청" && <p className={styles.dashed}>반려 사유를 확인하고 문구와 상품 정보를 수정해 주세요. <Link className={styles.textLink} href={`/campaigns/${encodeURIComponent(campaign.id)}/review`}>문구 고치러 가기</Link></p>}
       {campaign.status === "종료" && <p className={styles.approval}><Icon name="check" />광고 집행 기록을 마쳤습니다. <Link className={styles.textLink} href={`/campaigns/${encodeURIComponent(campaign.id)}/performance`}>성과 숫자 입력하기</Link></p>}

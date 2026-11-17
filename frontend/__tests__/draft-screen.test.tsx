@@ -70,3 +70,19 @@ test("저장해도 보던 채널 탭이 유지되고 다시 만들기는 그 채
   fireEvent.click(screen.getByRole("tab", { name: /인스타그램/ }));
   expect((screen.getByLabelText("캡션") as HTMLTextAreaElement).value).toBe("인스타 문구 고침");
 });
+
+test("고친 채널을 다시 만들 때만 한 번 더 묻고, 돌아가면 고친 내용을 지킨다", async () => {
+  const api = createMockCampaignApi({ delay: 0 });
+  render(<CampaignApiProvider api={api}><DraftScreen campaignId="c" /></CampaignApiProvider>);
+  const caption = await screen.findByLabelText("캡션") as HTMLTextAreaElement;
+  fireEvent.change(caption, { target: { value: "인스타 문구 고침" } });
+  fireEvent.click(screen.getByRole("button", { name: "이 채널 다시 만들기" }));
+  expect(screen.getByRole("alertdialog", { name: "인스타그램 초안을 다시 만들까요?" })).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "돌아가기" }));
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(caption.value).toBe("인스타 문구 고침");
+  fireEvent.click(screen.getByRole("button", { name: "이 채널 다시 만들기" }));
+  fireEvent.click(screen.getByRole("button", { name: "다시 만들기" }));
+  expect(await screen.findByText("인스타그램 초안을 다시 만들었어요.")).toBeDefined();
+  expect((screen.getByLabelText("캡션") as HTMLTextAreaElement).value).toContain("다시 만든 초안");
+});

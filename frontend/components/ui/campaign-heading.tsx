@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { type CampaignStatus, STEPS, activeStep } from "@/lib/campaign-status";
+import { ConfirmBox } from "./confirm-box";
 import { StatusBadge } from "./status-badge";
 import ui from "./ui.module.css";
 
@@ -23,13 +24,10 @@ export function CampaignHeading({ name, status, detail, canceledFrom, onCancel, 
       {onCancel && !confirming && <button type="button" className={ui.ghost} disabled={pending} onClick={() => setConfirming(true)}>캠페인 취소</button>}
     </div>
     {detail && <p className={ui.product}>{detail}</p>}
-    {onCancel && confirming && <div className={ui.confirm} role="alertdialog" aria-labelledby="cancel-title" aria-describedby="cancel-desc">
-      <div><strong id="cancel-title">이 캠페인을 취소할까요?</strong><p id="cancel-desc">취소하면 되돌릴 수 없어요. 문구 수정·검수·게시 기록을 더 할 수 없고 저장된 기록만 남아요.</p></div>
-      <div>
-        <button type="button" className={`${ui.ghost}`} disabled={pending} onClick={() => setConfirming(false)}>돌아가기</button>
-        <button type="button" className={`${ui.primary} ${ui.small}`} disabled={pending} onClick={async () => { const done = await onCancel(); if (done !== false) setConfirming(false); }}>{pending ? "취소 중…" : "취소하기"}</button>
-      </div>
-    </div>}
+    {onCancel && confirming && <ConfirmBox id="cancel" title="이 캠페인을 취소할까요?" confirmLabel="취소하기" pendingLabel="취소 중…" pending={pending}
+      onCancel={() => setConfirming(false)} onConfirm={async () => { const done = await onCancel(); if (done !== false) setConfirming(false); }}>
+      취소하면 되돌릴 수 없어요. 문구 수정·검수·게시 기록을 더 할 수 없고 저장된 기록만 남아요.
+    </ConfirmBox>}
     <div className={ui.stepScroll} tabIndex={0} role="region" aria-label="캠페인 진행 단계">
       <ol className={ui.steps} aria-label="진행 단계">{STEPS.map((label, index) => <li key={label} data-complete={index <= step} aria-current={index === step ? "step" : undefined}><span /><span>{String(index + 1).padStart(2, "0")} {label}</span></li>)}</ol>
     </div>

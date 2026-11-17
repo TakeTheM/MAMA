@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type KeyboardEvent } from "react";
 import { AppShell } from "@/components/ui/app-shell";
+import { ConfirmBox } from "@/components/ui/confirm-box";
 import { Icon } from "@/components/ui/icon";
 import ui from "@/components/ui/ui.module.css";
 import { type Channel, campaignPath } from "@/lib/campaign-status";
@@ -36,6 +37,8 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
   const [active, setActive] = useState<Channel>(channels[0]);
   const [drafts, setDrafts] = useState<Partial<Record<Channel, ChannelCopy>>>(() => structuredClone(campaign.drafts));
   const [newTag, setNewTag] = useState("");
+  // 고친 채널을 다시 만들면 고친 내용이 사라지므로 그때만 한 번 더 묻는다.
+  const [confirmRegenerate, setConfirmRegenerate] = useState<Channel | null>(null);
   const copy = drafts[active] ?? { caption: "", hashtags: [] };
   const dirty = channels.filter((channel) => JSON.stringify(drafts[channel]) !== JSON.stringify(campaign.drafts[channel]));
   const limit = CHANNEL_LIMITS[active];
@@ -57,6 +60,12 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
       last = await session.run((api) => api.saveDraft(campaign.id, channel, drafts[channel] ?? { caption: "", hashtags: [] }), "저장했어요.");
       if (!last) return;
     }
+  }
+  async function regenerate(channel: Channel) {
+    setConfirmRegenerate(null);
+    const next = await session.run((api) => api.regenerateChannel(campaign.id, channel), `${channel} 초안을 다시 만들었어요.`);
+    const fresh = next?.drafts[channel];
+    if (fresh) setDrafts((current) => ({ ...current, [channel]: fresh }));
   }
   function onTabKey(event: KeyboardEvent<HTMLButtonElement>) {
     const index = channels.indexOf(active);
@@ -94,12 +103,8 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
         </div>
 
         <div className={styles.footer}>
-          {campaign.allowedActions.includes("regenerate") ? <button className={ui.ghost} type="button" disabled={session.pending} onClick={async () => {
-            const channel = active;
-            const next = await session.run((api) => api.regenerateChannel(campaign.id, channel), `${channel} 초안을 다시 만들었어요.`);
-            const fresh = next?.drafts[channel];
-            if (fresh) setDrafts((current) => ({ ...current, [channel]: fresh }));
-          }}><Icon name="redo" size={16} />이 채널 다시 만들기</button> : <span />}
+          {campaign.allowedActions.includes("regenerate") ? <button className={ui.ghost} type="button" disabled={session.pending || confirmRegenerate === active}
+            onClick={() => (dirty.includes(active) ? setConfirmRegenerate(active) : void regenerate(active))}><Icon name="redo" size={16} />이 채널 다시 만들기</button> : <span />}
           <div className={styles.footerActions}>
             <button className={ui.secondary} type="button" disabled={session.pending || !dirty.length} onClick={() => void save()}>저장</button>
             <button className={ui.primary} type="button" disabled={session.pending} onClick={async () => {
@@ -108,7 +113,10 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
             }}>{session.pending ? "요청 중…" : "검수 요청"}</button>
           </div>
         </div>
-        <p className={ui.help}>검수 요청은 자동으로 되지 않아요. 문구를 확인한 뒤 직접 눌러 주세요.{dirty.length > 0 && " 다시 만들면 이 채널에서 고친 내용은 사라져요."}</p>
+        {confirmRegenerate === active && <ConfirmBox id="regenerate" title={`${active} 초안을 다시 만들까요?`} confirmLabel="다시 만들기" onCancel={() => setConfirmRegenerate(null)} onConfirm={() => void regenerate(active)}>
+          이 채널에서 고친 내용은 사라지고 새 초안으로 바뀌어요.
+        </ConfirmBox>}
+        <p className={ui.help}>검수 요청은 자동으로 되지 않아요. 문구를 확인한 뒤 직접 눌러 주세요.</p>
         <Feedback pending={session.pending} error={session.error} notice={session.notice} />
       </div>
     </section>
