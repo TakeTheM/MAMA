@@ -28,6 +28,8 @@
 .seller b { width: 36px; height: 36px; border-radius: 50%; color: #fff; background: #111; display: grid; place-items: center; font-weight: 700; }
 .sellerName { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sub); font-weight: 600; }
 .seller button { min-height: 36px; font-size: 13px; }
+.seller { position: relative; }
+.sellerError { position: absolute; top: calc(100% + 10px); right: 0; z-index: 50; width: max-content; max-width: min(300px, calc(100vw - 40px)); padding: 10px 12px; border: 1px solid var(--danger-line); border-radius: 8px; background: var(--danger-soft); color: #a41a20; font-size: 13px; line-height: 1.5; }
 /* 메뉴가 없는 화면(로그인)은 사이드바 칸을 비우지 않고 가운데에 둔다 */
 .workspace:has([data-bare-page]) { grid-template-columns: minmax(0, 1fr); }
 .content:has([data-bare-page]) { margin: 0 auto; }
