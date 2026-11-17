@@ -61,11 +61,23 @@ test("새 캠페인 초안: 만든 뒤 초안을 요청하고, 초안이 실패�
   expect(JSON.parse(calls[0].init.body as string)).toMatchObject({ product_name: "수제 그래놀라", product_price: 12900, channels: ["instagram"], initial_budget_amount: 70000, initial_budget_days: 7, content: "국산 귀리" });
 });
 
-test("422 검사 오류를 입력칸 이름으로 바꾼다", async () => {
-  stub(() => json(422, { detail: [{ loc: ["body", "initial_budget_days"], msg: "Input should be greater than 0", type: "greater_than" }] }));
+test("422 검사 오류를 입력칸 이름과 한국어 문구로 바꾼다", async () => {
+  stub(() => json(422, { detail: [
+    { loc: ["body", "initial_budget_days"], msg: "Input should be greater than 0", type: "greater_than", input: 0, ctx: { gt: 0 } },
+    { loc: ["body", "initial_budget_amount"], msg: "Input should be a valid integer", type: "int_type", input: null },
+    { loc: ["body", "product_price"], msg: "Input should be a valid integer, unable to parse string as an integer", type: "int_parsing", input: "abc" },
+    { loc: ["body", "product_name"], msg: "Value error, 상품명을 입력해 주세요", type: "value_error", input: "" },
+    { loc: ["body", "goal"], msg: "Input should be 'a' or 'b'", type: "something_new", input: "x" },
+  ] }));
   const api = createHttpCampaignApi();
-  const plan = { productName: "a", productDescription: "b", price: "1", category: "식품" as const, goal: "구매 늘리기" as const, channels: [], budgetAmount: "1", budgetDays: "0" };
-  await expect(api.savePlan(null, plan)).rejects.toMatchObject({ code: "validation", fields: { budgetDays: "Input should be greater than 0" } });
+  const plan = { productName: "", productDescription: "b", price: "abc", category: "식품" as const, goal: "구매 늘리기" as const, channels: [], budgetAmount: "", budgetDays: "0" };
+  await expect(api.savePlan(null, plan)).rejects.toMatchObject({ code: "validation", fields: {
+    budgetDays: "0보다 큰 숫자를 입력해 주세요",
+    budgetAmount: "입력해 주세요",
+    price: "숫자만 입력해 주세요",
+    productName: "상품명을 입력해 주세요",
+    goal: "값을 확인해 주세요",
+  } });
 });
 
 test("게시 화면: 예약 요청 본문과 24시간 경고, 반려 후 다시 고치기 연결", async () => {
