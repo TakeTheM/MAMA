@@ -1,6 +1,6 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
-import { CampaignApiProvider } from "../features/campaigns/api-context";
+import { CampaignApiProvider, useCampaign } from "../features/campaigns/api-context";
 import { createMockCampaignApi } from "../features/campaigns/mock-api";
 import type { RiskFinding } from "../features/campaigns/model";
 import { REVIEW_POLL_MS, ReviewScreen, applyFinding, canApply } from "../features/campaigns/review/review-screen";
@@ -179,3 +179,30 @@ test("저장 안 하고 나가기 상자에서는 Tab 키가 상자 안에서만
   expect(screen.queryByRole("alertdialog")).toBeNull();
 });
 
+
+test("다시 읽기를 시작한 뒤 화면이 이미 새 응답으로 바뀌었으면, 늦게 도착한 옛 응답은 버린다", async () => {
+  const api = createMockCampaignApi({ delay: 0 });
+  const done = await api.getCampaign("a");
+  const reviewing = { ...done, reviewPending: true, canApprove: false, updatedAt: "2000-01-01T00:00:00Z" };
+  let release: (value: typeof done) => void = () => undefined;
+  let calls = 0;
+  const racing = {
+    ...api,
+    getCampaign: (id: string) => {
+      calls += 1;
+      if (calls === 1) return Promise.resolve(reviewing);
+      // 2번째(먼저 보낸 자동 확인)는 늦게 도착하고, 3번째(나중 확인)는 바로 '검수 완료'를 준다.
+      if (calls === 2) return new Promise<typeof done>((resolve) => { release = resolve; });
+      return api.getCampaign(id);
+    },
+  };
+  const { result } = renderHook(() => useCampaign("a"), { wrapper: ({ children }) => <CampaignApiProvider api={racing}>{children}</CampaignApiProvider> });
+  await waitFor(() => expect(result.current.campaign?.reviewPending).toBe(true));
+  let slow: Promise<void> = Promise.resolve();
+  act(() => { slow = result.current.refresh(); });
+  await act(() => result.current.refresh());
+  expect(result.current.campaign?.reviewPending).toBeFalsy();
+  await act(async () => { release(reviewing); await slow; });
+  expect(result.current.campaign?.reviewPending).toBeFalsy();
+  expect(result.current.campaign?.updatedAt).toBe(done.updatedAt);
+});

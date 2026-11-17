@@ -76,10 +76,17 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
   const [reviewing, setReviewing] = useState(false);
   const { refresh } = session;
   // 다른 곳에서 요청한 검수가 진행 중이면 사장님이 새로고침하지 않아도 끝나는 대로 결과를 보여 준다.
+  // 앞 조회가 끝난 뒤에 다음 조회를 예약해서 요청이 겹치지 않게 한다(겹치면 늦게 온 '검수 중' 응답이 완료 화면을 덮을 수 있다).
   useEffect(() => {
     if (!campaign.reviewPending) return;
-    const timer = setInterval(refresh, REVIEW_POLL_MS);
-    return () => clearInterval(timer);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      await refresh();
+      if (!stopped) timer = setTimeout(poll, REVIEW_POLL_MS);
+    };
+    timer = setTimeout(poll, REVIEW_POLL_MS);
+    return () => { stopped = true; clearTimeout(timer); };
   }, [campaign.reviewPending, refresh]);
   const copy = drafts[active] ?? { caption: "", hashtags: [] };
   const findings = allFindings.filter((finding) => finding.channel === active);

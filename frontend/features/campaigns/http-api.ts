@@ -1,5 +1,6 @@
 import { type CampaignStatus, type Channel } from "@/lib/campaign-status";
 import { HttpError, apiFetch } from "@/lib/api/http";
+import { parseNumberInput } from "@/lib/number-input";
 import {
   type Campaign, type CampaignAction, type CampaignApi, type CampaignSummary, type Category, type ChannelCopy, type Goal,
   type HistoryEntry, type Performance, type PerformanceInput, type PlanInput, type RiskFinding, type RiskRule, ApiError, CATEGORIES, GOALS,
@@ -63,11 +64,10 @@ async function call<T>(request: () => Promise<T>, campaignId?: string): Promise<
 }
 
 const toNumber = (value: string) => {
-  const trimmed = value.replace(/,/g, "").trim();
+  const trimmed = value.trim();
   if (!trimmed) return null;
-  const number = Number(trimmed);
-  // 숫자가 아니면 그대로 보내서 백엔드가 어느 칸이 틀렸는지 알려 주게 한다.
-  return Number.isFinite(number) ? number : trimmed;
+  // 숫자가 아니거나 쉼표 위치가 틀리면(50,00 같은 오타) 그대로 보내서 백엔드가 어느 칸이 틀렸는지 알려 주게 한다.
+  return parseNumberInput(trimmed) ?? trimmed;
 };
 const nonBlank = (value: string) => (value.trim() ? value : undefined);
 

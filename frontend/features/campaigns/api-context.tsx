@@ -35,14 +35,25 @@ export function useCampaign(id: string) {
   const [attempt, setAttempt] = useState(0);
   const lock = useRef(false);
   const mounted = useRef(false);
+  // 화면의 캠페인을 바꿀 때마다 1씩 올린다. 다시 읽기를 시작한 뒤 이 값이 바뀌었다면 그 응답은 이미 낡은 것이다.
+  const version = useRef(0);
+  const show = useCallback((data: Campaign) => { version.current += 1; setCampaign(data); }, []);
+  /** 시작한 뒤 다른 응답으로 화면이 바뀌지 않았을 때만 보여 준다(늦게 도착한 응답이 최신 화면을 덮지 않게). */
+  const readLatest = useCallback(async () => {
+    const started = version.current;
+    try {
+      const data = await api.getCampaign(id);
+      if (mounted.current && !lock.current && version.current === started) show(data);
+    } catch { /* 지금 화면을 그대로 둔다 */ }
+  }, [api, id, show]);
 
   useEffect(() => {
     mounted.current = true;
     let active = true;
-    api.getCampaign(id).then((data) => { if (active) setCampaign(data); })
+    api.getCampaign(id).then((data) => { if (active) show(data); })
       .catch((failure: unknown) => { if (active) setLoadError(asApiError(failure)); });
     return () => { active = false; mounted.current = false; };
-  }, [api, id, attempt]);
+  }, [api, id, attempt, show]);
 
   const reload = useCallback(() => { setLoadError(null); setAttempt((value) => value + 1); }, []);
 
@@ -53,26 +64,27 @@ export function useCampaign(id: string) {
     try {
       const next = await request(api);
       if (!mounted.current) return null;
-      setCampaign(next);
+      show(next);
       if (success) setNotice(success);
       return next;
     } catch (failure) {
       if (mounted.current) {
         setError(asApiError(failure));
         // 요청이 실패해도 백엔드 상태가 바뀌었을 수 있다(예: 검수 실패 기록). 최신 상태를 다시 읽는다.
-        api.getCampaign(id).then((data) => { if (mounted.current) setCampaign(data); }).catch(() => undefined);
+        void Promise.resolve().then(readLatest);
       }
       return null;
     } finally {
       lock.current = false;
       if (mounted.current) setPending(false);
     }
-  }, [api, id]);
+  }, [api, show, readLatest]);
 
-  /** 화면을 '불러오는 중'으로 바꾸지 않고 최신 상태만 다시 읽는다. 실패하면 지금 화면을 그대로 둔다(자동 확인용). */
-  const refresh = useCallback(() => {
-    api.getCampaign(id).then((data) => { if (mounted.current && !lock.current) setCampaign(data); }).catch(() => undefined);
-  }, [api, id]);
+  /**
+   * 화면을 '불러오는 중'으로 바꾸지 않고 최신 상태만 다시 읽는다(자동 확인용). 끝나면 풀리는 Promise를 돌려준다.
+   * 실패하거나, 그사이 다른 응답으로 화면이 바뀌었으면 지금 화면을 그대로 둔다.
+   */
+  const refresh = readLatest;
 
   const clearError = useCallback(() => setError(null), []);
   return { api, campaign, loadError, error, pending, notice, reload, refresh, run, clearError };

@@ -114,3 +114,12 @@ test("서버 오류(500)는 연결 실패와 구분해 상태 코드와 함께 �
   vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("fetch failed"); }));
   await expect(apiFetch("/api/health")).rejects.toMatchObject({ status: 0, message: expect.stringContaining("연결하지 못했어요") });
 });
+
+test("기획 화면의 가격·예산도 쉼표 위치가 틀리면 숫자로 바꾸지 않고 그대로 보내 백엔드가 칸을 알려 주게 한다", async () => {
+  stub(() => json(201, campaignOut({ status: "기획중" })));
+  const api = createHttpCampaignApi();
+  const plan = { productName: "a", productDescription: "b", price: "12,900", category: "식품" as const, goal: "구매 늘리기" as const, channels: [], budgetAmount: "50,00", budgetDays: "1,5" };
+  await api.savePlan(null, plan).catch(() => undefined);
+  expect(JSON.parse(calls[0].init.body as string)).toMatchObject({ product_price: 12900, initial_budget_amount: "50,00", initial_budget_days: "1,5" });
+});
+

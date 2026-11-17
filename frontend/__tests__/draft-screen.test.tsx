@@ -123,10 +123,12 @@ test("고친 내용이 있으면 다른 화면으로 가기 전에 묻고, 저�
 test("글자 수 제한을 넘긴 채널이 있으면 검수 요청을 막고 이유를 알려 준다", async () => {
   render(<CampaignApiProvider api={createMockCampaignApi({ delay: 0 })}><DraftScreen campaignId="c" /></CampaignApiProvider>);
   fireEvent.click(await screen.findByRole("tab", { name: "X" }));
-  fireEvent.change(screen.getByLabelText("캡션"), { target: { value: "가".repeat(281) } });
+  // X는 한글을 2자로 센다: 141자 한글은 282자라 넘는다.
+  fireEvent.change(screen.getByLabelText("캡션"), { target: { value: "가".repeat(141) } });
   expect((screen.getByRole("button", { name: "검수 요청" }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByText(/X 캡션이 글자 수 제한을 넘었어요/)).toBeDefined();
-  fireEvent.change(screen.getByLabelText("캡션"), { target: { value: "가".repeat(280) } });
+  expect(screen.getByText(/X 게시물\(캡션\+해시태그\)이 글자 수 제한을 넘었어요/)).toBeDefined();
+  // 링크는 길이와 관계없이 23자라서, 긴 상품 링크를 붙여도 막지 않는다.
+  fireEvent.change(screen.getByLabelText("캡션"), { target: { value: `제품 안내 https://shop.example.com/${"p".repeat(300)}` } });
   expect((screen.getByRole("button", { name: "검수 요청" }) as HTMLButtonElement).disabled).toBe(false);
 });
 
