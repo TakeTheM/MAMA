@@ -123,3 +123,13 @@ test("직접 고치기에서 해시태그 뒤에 띄어쓰기를 치고 새 태�
   expect(screen.getByText(/#광고 #그래놀라/)).toBeDefined();
 });
 
+
+test("제안을 적용한 뒤 다른 화면으로 가려 하면 다시 검수 전이라고 묻는다", async () => {
+  window.history.replaceState(null, "", "/campaigns/a/review");
+  render(<CampaignApiProvider api={createMockCampaignApi({ delay: 0 })}><ReviewScreen campaignId="a" /></CampaignApiProvider>);
+  await screen.findByText("위험 표현 2개를 찾았어요");
+  fireEvent.click(screen.getByRole("button", { name: "적용" }));
+  fireEvent.click(screen.getByRole("link", { name: "캠페인" }));
+  expect(screen.getByRole("alertdialog", { name: "고친 내용이 저장되지 않았어요" })).toBeDefined();
+  expect(push).not.toHaveBeenCalled();
+});

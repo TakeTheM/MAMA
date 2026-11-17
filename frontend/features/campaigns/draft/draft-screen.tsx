@@ -6,6 +6,7 @@ import { useState, type KeyboardEvent } from "react";
 import { AppShell } from "@/components/ui/app-shell";
 import { ConfirmBox } from "@/components/ui/confirm-box";
 import { Icon } from "@/components/ui/icon";
+import { UnsavedGuard } from "@/components/ui/unsaved-guard";
 import ui from "@/components/ui/ui.module.css";
 import { type Channel, campaignPath } from "@/lib/campaign-status";
 import { useCampaign } from "../api-context";
@@ -78,6 +79,7 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
   }
 
   return <div className={`${ui.columns} ${ui.columnsWide}`}>
+    <UnsavedGuard when={dirty.length > 0} message={`${dirty.join(", ")} 초안에서 고친 내용이 사라져요. 남기려면 ‘돌아가기’를 누르고 ‘저장’을 눌러 주세요.`} />
     <section aria-label="초안 편집" className={ui.stack} aria-busy={session.pending}>
       <div className={styles.tabRow}>
         <div role="tablist" aria-label="채널" className={ui.tabs}>

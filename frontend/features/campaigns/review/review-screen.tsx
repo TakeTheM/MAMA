@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type KeyboardEvent, type ReactNode } from "react";
 import { AppShell } from "@/components/ui/app-shell";
 import { Icon } from "@/components/ui/icon";
+import { UnsavedGuard } from "@/components/ui/unsaved-guard";
 import ui from "@/components/ui/ui.module.css";
 import { type Channel, campaignPath } from "@/lib/campaign-status";
 import { useCampaign } from "../api-context";
@@ -103,6 +104,7 @@ function ReviewBody({ campaign, session }: { campaign: Campaign; session: Sessio
   }
 
   return <>
+    <UnsavedGuard when={changed} message="적용하거나 직접 고친 문구가 사라져요. 남기려면 ‘돌아가기’를 누르고 ‘다시 검수 요청’을 눌러 주세요." />
     {/* 안내 띠는 서버 검수 결과만 보여 준다. 제안을 적용할 때마다 띠가 바뀌면 화면이 새로 불러와진 것처럼 보여서, 고친 상태는 아래 승인 줄에서만 알린다. */}
     <ResultBanner campaign={campaign} openCount={campaign.findings.filter((finding) => !finding.applied).length} />
     <div className={`${ui.columns} ${ui.columnsWide}`}>

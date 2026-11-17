@@ -86,3 +86,36 @@ test("고친 채널을 다시 만들 때만 한 번 더 묻고, 돌아가면 고
   expect(await screen.findByText("인스타그램 초안을 다시 만들었어요.")).toBeDefined();
   expect((screen.getByLabelText("캡션") as HTMLTextAreaElement).value).toContain("다시 만든 초안");
 });
+
+test("고친 내용이 있으면 다른 화면으로 가기 전에 묻고, 저장하면 묻지 않는다", async () => {
+  window.history.replaceState(null, "", "/campaigns/c/draft");
+  const api = createMockCampaignApi({ delay: 0 });
+  render(<CampaignApiProvider api={api}><DraftScreen campaignId="c" /></CampaignApiProvider>);
+  const caption = await screen.findByLabelText("캡션") as HTMLTextAreaElement;
+  const home = () => screen.getByRole("link", { name: "캠페인" });
+
+  // 고친 게 없으면 그냥 이동한다(확인 상자 없음).
+  fireEvent.click(home());
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+
+  fireEvent.change(caption, { target: { value: "인스타 문구 고침" } });
+  const unload = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(unload);
+  expect(unload.defaultPrevented).toBe(true);
+
+  fireEvent.click(home());
+  expect(screen.getByRole("alertdialog", { name: "고친 내용이 저장되지 않았어요" })).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "돌아가기" }));
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(caption.value).toBe("인스타 문구 고침");
+  expect(push).not.toHaveBeenCalled();
+
+  fireEvent.click(home());
+  fireEvent.click(screen.getByRole("button", { name: "저장하지 않고 나가기" }));
+  expect(push).toHaveBeenCalledWith("/");
+
+  fireEvent.click(screen.getByRole("button", { name: "저장" }));
+  expect(await screen.findByText("저장했어요.")).toBeDefined();
+  fireEvent.click(home());
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+});
