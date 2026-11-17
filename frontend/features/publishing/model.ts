@@ -26,7 +26,7 @@ export interface PublishingAdapter {
   mutate(id: string, command: Mutation): Promise<MutationResult>;
 }
 export class PublishingError extends Error {
-  constructor(public code: "not_found" | "forbidden" | "network" | "validation" | "conflict", message: string,
+  constructor(public code: "not_found" | "forbidden" | "unauthorized" | "network" | "validation" | "conflict", message: string,
     public field?: "scheduledAt" | "amount" | "days" | "reason") {
     super(message);
   }

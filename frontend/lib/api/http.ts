@@ -1,8 +1,10 @@
 /*
  * FastAPI 호출 공통 처리.
  * - 주소는 항상 /api/... (Next.js rewrites가 BACKEND_URL로 넘긴다).
- * - MVP에는 로그인이 없어서 인증 헤더를 붙이지 않는다.
+ * - 로그인은 httpOnly 세션 쿠키(mama_session)라서 같은 주소로 fetch하면 쿠키가 저절로 간다. 토큰을 저장하거나 헤더에 붙이지 않는다.
+ * - 401(로그인 안 됨·만료)이면 지금 경로를 기억하고 로그인 화면으로 보낸다.
  */
+import { redirectToLogin } from "./login-path";
 
 export type HttpErrorKind = "unauthorized" | "forbidden" | "not_found" | "conflict" | "validation" | "llm" | "network";
 
@@ -77,11 +79,13 @@ async function toError(response: Response): Promise<HttpError> {
     }
     return new HttpError(response.status, kind, "입력한 값을 확인해 주세요.", fields);
   }
+  if (response.status === 401) {
+    redirectToLogin();
+    return new HttpError(401, kind, "로그인이 필요해요. 로그인 화면으로 이동할게요.");
+  }
   // 연결은 됐지만 서버가 오류를 낸 경우(500 등)는 '연결 못 함'과 구분해서 알려 준다.
-  const fallback = response.status === 401
-    ? "백엔드가 로그인을 요구해서 데이터를 불러오지 못했어요 (401)."
-    : response.status >= 500 ? `서버에서 오류가 났어요 (${response.status}). 잠시 뒤 다시 시도하거나 관리자에게 알려 주세요.` : "요청을 처리하지 못했어요.";
-  const message = typeof detail === "string" && detail && response.status !== 401 ? detail : fallback;
+  const fallback = response.status >= 500 ? `서버에서 오류가 났어요 (${response.status}). 잠시 뒤 다시 시도하거나 관리자에게 알려 주세요.` : "요청을 처리하지 못했어요.";
+  const message = typeof detail === "string" && detail ? detail : fallback;
   return new HttpError(response.status, kind, message);
 }
 

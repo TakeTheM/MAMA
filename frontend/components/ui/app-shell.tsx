@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
+import { LOGIN_PATH } from "@/lib/api/login-path";
+import { AccountMenu } from "./account-menu";
 import { Icon } from "./icon";
 import ui from "./ui.module.css";
 
@@ -27,7 +29,10 @@ function Nav({ active }: { active: NavKey | null }) {
   </nav>;
 }
 function CurrentNav() {
-  return <Nav active={activeNav(usePathname())} />;
+  const pathname = usePathname();
+  // 로그인 화면에서는 메뉴를 숨긴다(눌러도 다시 로그인 화면으로 돌아오기만 한다).
+  if (pathname === LOGIN_PATH) return null;
+  return <Nav active={activeNav(pathname)} />;
 }
 
 /**
@@ -38,7 +43,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
     <a className={ui.skip} href="#main">본문으로 건너뛰기</a>
     <header className={ui.topbar}>
       <Link href="/" className={ui.brand}><span>M</span>MAMA</Link>
-      <div className={ui.seller}><span>우리 가게</span><b aria-label="셀러 계정">셀</b></div>
+      <Suspense fallback={null}><AccountMenu /></Suspense>
     </header>
     {/* 화면 어딘가가 기다리는 중이면(불러오는 중·요청 처리 중) CSS가 이 막대를 보여 준다 */}
     <div className={ui.loadingBar} aria-hidden="true" />
