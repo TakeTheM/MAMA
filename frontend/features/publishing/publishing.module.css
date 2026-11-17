@@ -72,3 +72,23 @@
   .facts > div { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: no-preference) { .primary, .secondary { transition: background-color .15s; } }
+/* 접었다 펴는 카드: 기본 ▼ 표시 대신 오른쪽 화살표를 쓰고, 접힌 상태에서도 핵심(예약 시각·예산)을 보여 준다 */
+.disclosure { padding: 0; gap: 0; }
+.disclosure > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 28px; cursor: pointer; border-radius: 12px; }
+.disclosure > summary::-webkit-details-marker { display: none; }
+.disclosure > summary:hover { background: #fafafa; }
+.disclosure > summary:focus-visible { outline: 3px solid #e2635580; outline-offset: 2px; }
+.disclosure > summary > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.disclosure > summary strong { font-size: 15px; color: #111; }
+.disclosure > summary small { font-size: 13px; color: #6b6b6b; overflow-wrap: anywhere; }
+.disclosure > summary svg { flex: none; color: #6b6b6b; transition: transform .2s; }
+.disclosure[open] > summary svg { transform: rotate(180deg); }
+.disclosure[open] > summary { border-bottom: 1px solid #ebebeb; border-radius: 12px 12px 0 0; }
+.disclosureBody { display: flex; flex-direction: column; gap: 24px; padding: 20px 28px 28px; }
+.disclosureBody > section { display: flex; flex-direction: column; gap: 12px; }
+.disclosureBody > section + section { padding-top: 24px; border-top: 1px solid #ebebeb; }
+.subTitle { font-size: 13px; font-weight: 700; color: #3d3d3d; margin: 0; }
+.copyList { display: flex; flex-direction: column; gap: 20px; }
+@media (max-width: 767px) { .disclosure > summary { padding: 16px 20px; } .disclosureBody { padding: 16px 20px 20px; } }
+@media (prefers-reduced-motion: reduce) { .disclosure > summary svg { transition: none; } }
+

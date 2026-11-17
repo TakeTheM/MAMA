@@ -101,9 +101,14 @@ function ReviewWarning() {
 }
 function ApprovalPanel({ campaign }: { campaign: Campaign }) {
   const approval = [...campaign.history].reverse().find((entry) => entry.to === "승인됨");
-  return <aside className={styles.stack} aria-label="승인 정보"><section className={styles.card}><h2>승인된 문구</h2>{campaign.copies?.length ? campaign.copies.map((copy) => <div key={copy.channel} className={styles.approvedCopy}><strong>{copy.channel}</strong><p>{copy.caption}</p><p className={styles.help}>{copy.hashtags.join(" ")}</p></div>) : <div className={styles.approvedCopy}><strong>{campaign.channels.join(", ")}</strong><p>{campaign.caption}</p><p className={styles.help}>{campaign.hashtags.join(" ")}</p></div>}</section>
+  return <aside className={styles.stack} aria-label="승인 정보"><section className={styles.card}><h2>승인된 문구</h2><ApprovedCopies campaign={campaign} /></section>
     {approval && <div className={styles.approval}><Icon name="check" /><span>{actorName(approval.actor)} · {formatTime(approval.at)} 승인</span></div>}
   </aside>;
+}
+/** 승인된 문구를 채널별로 보여 준다 (채널별 문구가 없던 예전 캠페인은 한 덩어리로) */
+function ApprovedCopies({ campaign }: { campaign: Campaign }) {
+  const copies = campaign.copies?.length ? campaign.copies : [{ channel: campaign.channels.join(", "), caption: campaign.caption, hashtags: campaign.hashtags }];
+  return <div className={styles.copyList}>{copies.map((copy) => <div key={copy.channel} className={styles.approvedCopy}><strong>{copy.channel}</strong><p>{copy.caption}</p><p className={styles.help}>{copy.hashtags.join(" ")}</p></div>)}</div>;
 }
 function PlanFacts({ campaign }: { campaign: Campaign }) {
   return <dl className={styles.facts}><div><dt>게시 예정 시각</dt><dd>{formatTime(campaign.schedule?.scheduledAt)}</dd></div><div><dt>총 예산</dt><dd>{money(campaign.schedule?.amount ?? campaign.initialBudget.amount)}</dd></div><div><dt>기간</dt><dd>{campaign.schedule?.days ?? campaign.initialBudget.days}일</dd></div></dl>;
@@ -151,7 +156,13 @@ function RecordsContent() {
       {campaign.status === "취소" && <p className={styles.dashed}>취소된 캠페인입니다. 저장된 기록만 확인할 수 있습니다.</p>}
       {!campaign.allowedActions.length && !["수정 요청", "종료", "취소"].includes(campaign.status) && <p className={styles.dashed}>현재 단계에서는 게시·집행 기록을 변경할 수 없습니다.</p>}
       <Feedback />
-      <details className={styles.card}><summary>게시 계획과 승인 문구 확인</summary><PlanFacts campaign={campaign} /><p className={styles.reason}>{campaign.caption}</p><p className={styles.help}>{campaign.hashtags.join(" ")}</p><Link className={styles.textLink} href={schedulePath(campaign.id)}>게시 시각·예산 보기</Link></details>
+      <details className={`${styles.card} ${styles.disclosure}`}>
+        <summary><span><strong>게시 계획과 승인 문구</strong><small>예약 시각 {formatTime(campaign.schedule?.scheduledAt)} · 예산 {money(campaign.schedule?.amount ?? campaign.initialBudget.amount)}</small></span><Icon name="chevron" size={20} /></summary>
+        <div className={styles.disclosureBody}>
+          <section aria-label="게시 계획"><h3 className={styles.subTitle}>게시 계획</h3><PlanFacts campaign={campaign} /></section>
+          <section aria-label="승인된 문구"><h3 className={styles.subTitle}>승인된 문구</h3><ApprovedCopies campaign={campaign} /></section>
+        </div>
+      </details>
       {(campaign.publishedAt || campaign.endedAt) && <dl className={`${styles.card} ${styles.facts}`}><div><dt>게시 시각</dt><dd>{formatTime(campaign.publishedAt)}</dd></div><div><dt>종료 시각</dt><dd>{formatTime(campaign.endedAt)}</dd></div></dl>}
       <p className={styles.help}>{MANUAL_NOTICE}</p>
     </section>
