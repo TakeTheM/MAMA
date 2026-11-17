@@ -19,8 +19,26 @@ const GROUPS = {
   done: ["성과 평가 완료"],
   canceled: ["취소"],
 } satisfies Record<string, CampaignStatus[]>;
-type Filter = "all" | "action" | "progress" | "running" | "done" | "canceled";
-const FILTERS: [Filter, string][] = [["all", "전체"], ["action", "조치 필요"], ["progress", "진행 중"], ["running", "집행중"], ["done", "완료"], ["canceled", "취소"]];
+type Filter = "all" | keyof typeof GROUPS;
+const FILTERS: [Filter, string][] = [["all", "전체"], ["action", "조치 필요"], ["progress", "진행 중"], ["running", "집행중"], ["waiting", "성과 입력 대기"], ["done", "완료"], ["canceled", "취소"]];
+/** 위쪽 요약 칸. 누르면 같은 조건으로 아래 목록을 거른다. */
+const STATS: { key: keyof typeof GROUPS; label: string; hint: string }[] = [
+  { key: "action", label: "조치 필요", hint: "수정 요청 · 플랫폼 반려" },
+  { key: "progress", label: "진행 중", hint: "기획 ~ 게시 예약" },
+  { key: "running", label: "집행중", hint: "플랫폼에 올라간 광고" },
+  { key: "waiting", label: "성과 입력 대기", hint: "종료된 광고" },
+];
+/** 고른 필터는 주소(?filter=)에 남겨서, 캠페인을 열었다가 돌아와도 그대로 보이게 한다. */
+function filterFromUrl(): Filter {
+  if (typeof window === "undefined") return "all";
+  const value = new URLSearchParams(window.location.search).get("filter");
+  return FILTERS.some(([key]) => key === value) ? value as Filter : "all";
+}
+function saveFilterToUrl(filter: Filter) {
+  const url = new URL(window.location.href);
+  if (filter === "all") url.searchParams.delete("filter"); else url.searchParams.set("filter", filter);
+  window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+}
 const inGroup = (group: CampaignStatus[], status: CampaignStatus) => group.includes(status);
 
 /** 목록의 '다음 할 일' 안내 (화면 문구일 뿐, 할 수 있는지는 각 화면에서 백엔드 응답으로 다시 정해진다) */
@@ -62,7 +80,9 @@ function ListState({ error, retry }: { error: ApiError | null; retry: () => void
 
 export function CampaignListScreen() {
   const { items, error, retry } = useCampaignList();
-  const [filter, setFilter] = useState<Filter>("all");
+  // 목록은 브라우저에서 불러온 뒤에야 그려지므로, 처음 값을 주소에서 읽어도 서버 화면(불러오는 중)과 어긋나지 않는다.
+  const [filter, setFilterState] = useState<Filter>(filterFromUrl);
+  const setFilter = (next: Filter) => { setFilterState(next); saveFilterToUrl(next); };
   const count = (group: CampaignStatus[]) => items?.filter((item) => inGroup(group, item.status)).length ?? 0;
   const visible = items?.filter((item) => filter === "all" || inGroup(GROUPS[filter], item.status)) ?? [];
 
@@ -73,10 +93,10 @@ export function CampaignListScreen() {
     </div>
     {!items ? <ListState error={error} retry={retry} /> : <>
       <section aria-label="상태 요약" className={styles.summary}>
-        <div className={styles.stat} data-alert={count(GROUPS.action) > 0}><span><i />조치 필요</span><strong>{count(GROUPS.action)}</strong><small>수정 요청 · 플랫폼 반려</small></div>
-        <div className={styles.stat}><span>진행 중</span><strong>{count(GROUPS.progress)}</strong><small>기획 ~ 게시 예약</small></div>
-        <div className={styles.stat}><span>집행중</span><strong>{count(GROUPS.running)}</strong><small>플랫폼에 올라간 광고</small></div>
-        <div className={styles.stat}><span>성과 입력 대기</span><strong>{count(GROUPS.waiting)}</strong><small>종료된 광고</small></div>
+        {STATS.map((stat) => <button key={stat.key} type="button" className={styles.stat} data-alert={stat.key === "action" && count(GROUPS.action) > 0} data-active={filter === stat.key}
+          aria-label={`${stat.label} ${count(GROUPS[stat.key])}개 보기`} onClick={() => setFilter(filter === stat.key ? "all" : stat.key)}>
+          <span>{stat.key === "action" && <i />}{stat.label}</span><strong>{count(GROUPS[stat.key])}</strong><small>{stat.hint}</small>
+        </button>)}
       </section>
       <section aria-label="캠페인 목록" className={ui.stack}>
         <div className={ui.pills} role="group" aria-label="상태로 거르기">

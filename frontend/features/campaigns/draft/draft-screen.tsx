@@ -44,6 +44,8 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
   const copy = drafts[active] ?? { caption: "", hashtags: [] };
   const dirty = channels.filter((channel) => JSON.stringify(drafts[channel]) !== JSON.stringify(campaign.drafts[channel]));
   const limit = CHANNEL_LIMITS[active];
+  // 글자 수를 넘긴 채널이 있으면 검수 요청을 막는다(플랫폼에 올릴 수 없는 문구라서).
+  const overLimit = channels.filter((channel) => (drafts[channel]?.caption.length ?? 0) > CHANNEL_LIMITS[channel]);
   const update = (next: Partial<ChannelCopy>) => setDrafts((current) => ({ ...current, [active]: { ...copy, ...next } }));
 
   function addTag() {
@@ -110,7 +112,7 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
             onClick={() => (dirty.includes(active) ? setConfirmRegenerate(active) : void regenerate(active))}><Icon name="redo" size={16} />이 채널 다시 만들기</button> : <span />}
           <div className={styles.footerActions}>
             <button className={ui.secondary} type="button" disabled={session.pending || !dirty.length} onClick={() => void save()}>저장</button>
-            <button className={ui.primary} type="button" disabled={session.pending} onClick={async () => {
+            <button className={ui.primary} type="button" disabled={session.pending || overLimit.length > 0} aria-describedby={overLimit.length ? "over-limit" : undefined} onClick={async () => {
               setReviewing(true);
               const next = await session.run((api) => api.requestReview(campaign.id, drafts));
               if (next) { router.push(`/campaigns/${encodeURIComponent(campaign.id)}/review`); return; }
@@ -121,6 +123,7 @@ function DraftEditor({ campaign, session }: { campaign: Campaign; session: Sessi
         {confirmRegenerate === active && <ConfirmBox id="regenerate" title={`${active} 초안을 다시 만들까요?`} confirmLabel="다시 만들기" onCancel={() => setConfirmRegenerate(null)} onConfirm={() => void regenerate(active)}>
           이 채널에서 고친 내용은 사라지고 새 초안으로 바뀌어요.
         </ConfirmBox>}
+        {overLimit.length > 0 && !reviewing && <p id="over-limit" className={ui.fieldError}><Icon name="alert" size={16} />{overLimit.join(", ")} 캡션이 글자 수 제한을 넘었어요. 줄여야 검수를 요청할 수 있어요.</p>}
         {reviewing
           ? <p role="status" className={ui.help}>AI가 위험 표현을 검수하고 있어요. 끝나면 검수 결과 화면으로 넘어가요.</p>
           : <p className={ui.help}>검수 요청은 자동으로 되지 않아요. 문구를 확인한 뒤 직접 눌러 주세요.</p>}

@@ -22,10 +22,13 @@ export function PerformanceScreen({ campaignId }: { campaignId: string }) {
   const session = useCampaign(campaignId);
   return <AppShell>
     <LoadGate campaign={session.campaign} loadError={session.loadError} reload={session.reload}>{(campaign) => <>
-      <Heading campaign={campaign} pending={session.pending} onCancel={() => session.run((api) => api.cancel(campaign.id))} />
+      <Heading campaign={campaign} pending={session.pending} onCancel={() => session.run((api) => api.cancel(campaign.id), "캠페인을 취소했어요.")} />
       {campaign.status === "종료" || campaign.status === "성과 평가 완료"
         ? <PerformanceBody key={campaign.id} campaign={campaign} session={session} />
-        : <WrongStage campaign={campaign}>광고를 종료 기록한 뒤에 성과를 넣을 수 있어요. <Link className={ui.textLink} href={campaignPath(campaign.id, campaign.status)}>지금 단계 화면으로 가기</Link></WrongStage>}
+        : <>
+          <WrongStage campaign={campaign}>광고를 종료 기록한 뒤에 성과를 넣을 수 있어요. <Link className={ui.textLink} href={campaignPath(campaign.id, campaign.status)}>지금 단계 화면으로 가기</Link></WrongStage>
+          <Feedback pending={session.pending} error={session.error} notice={session.notice} />
+        </>}
     </>}</LoadGate>
   </AppShell>;
 }

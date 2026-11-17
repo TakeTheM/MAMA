@@ -119,3 +119,14 @@ test("고친 내용이 있으면 다른 화면으로 가기 전에 묻고, 저�
   fireEvent.click(home());
   expect(screen.queryByRole("alertdialog")).toBeNull();
 });
+
+test("글자 수 제한을 넘긴 채널이 있으면 검수 요청을 막고 이유를 알려 준다", async () => {
+  render(<CampaignApiProvider api={createMockCampaignApi({ delay: 0 })}><DraftScreen campaignId="c" /></CampaignApiProvider>);
+  fireEvent.click(await screen.findByRole("tab", { name: "X" }));
+  fireEvent.change(screen.getByLabelText("캡션"), { target: { value: "가".repeat(281) } });
+  expect((screen.getByRole("button", { name: "검수 요청" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText(/X 캡션이 글자 수 제한을 넘었어요/)).toBeDefined();
+  fireEvent.change(screen.getByLabelText("캡션"), { target: { value: "가".repeat(280) } });
+  expect((screen.getByRole("button", { name: "검수 요청" }) as HTMLButtonElement).disabled).toBe(false);
+});
+

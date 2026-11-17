@@ -32,3 +32,21 @@ test("성과 기록은 끝난 광고만 ROAS와 함께 보여 준다", async () 
   expect(screen.getByText("312%")).toBeDefined();
   expect(screen.getByText("성과 숫자 입력")).toBeDefined();
 });
+
+test("요약 칸을 누르면 같은 조건으로 거르고, 고른 필터는 주소에 남아 돌아와도 유지된다", async () => {
+  window.history.replaceState(null, "", "/");
+  const api = createMockCampaignApi({ delay: 0 });
+  const view = render(<CampaignApiProvider api={api}><CampaignListScreen /></CampaignApiProvider>);
+  await screen.findByRole("table");
+  fireEvent.click(screen.getByRole("button", { name: /^성과 입력 대기 \d+개 보기$/ }));
+  expect(window.location.search).toBe("?filter=waiting");
+  const pill = screen.getByRole("button", { name: /^성과 입력 대기 \d+$/ });
+  expect(pill.getAttribute("aria-pressed")).toBe("true");
+  view.unmount();
+  render(<CampaignApiProvider api={api}><CampaignListScreen /></CampaignApiProvider>);
+  await screen.findByText(/성과 숫자 입력|이 조건에 맞는 캠페인이 없어요/);
+  expect(screen.getByRole("button", { name: /^성과 입력 대기 \d+$/ }).getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(screen.getByRole("button", { name: /^전체 \d+$/ }));
+  expect(window.location.search).toBe("");
+});
+

@@ -31,7 +31,7 @@
 .publishCard { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .publishCard > div { flex: 1 1 260px; }
 .alignRight { display: flex; justify-content: flex-end; }
-.optional { color: #6b6b6b; font-weight: 400; }
+.required { color: #d61f26; font-weight: 600; }
 .dashed { border: 1px dashed #d9d9d9; border-radius: 12px; padding: 20px 24px; display: flex; align-items: flex-start; gap: 12px; color: #6b6b6b; }
 .dashed svg { margin-top: 2px; }
 .reason { white-space: pre-wrap; overflow-wrap: anywhere; }
