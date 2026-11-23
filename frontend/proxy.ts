@@ -18,6 +18,8 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // API(백엔드로 넘기는 요청)·Next 내부 파일·public의 정적 파일(확장자가 있는 주소)은 확인하지 않는다.
-  matcher: ["/((?!api/|api$|_next/static|_next/image|favicon\\.ico|.*\\.[^/]+$).*)"],
+  // API(백엔드로 넘기는 요청)·Next 내부 파일·public의 정적 파일은 확인하지 않는다.
+  // 정적 파일은 아래 확장자로만 한정한다. '점이 있으면 모두 제외'로 두면 /campaigns/spring.sale 같은 페이지 경로까지
+  // 로그인 확인을 건너뛴다. public에 다른 종류의 파일을 넣으면 이 목록에 확장자를 추가한다.
+  matcher: ["/((?!api/|api$|_next/static|_next/image|.*\\.(?:svg|png|jpe?g|gif|webp|avif|ico|txt|xml|webmanifest)$).*)"],
 };
