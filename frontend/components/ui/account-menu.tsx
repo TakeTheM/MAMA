@@ -2,9 +2,9 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { type Me, displayName, getMe, logout } from "@/lib/api/auth";
-import { HttpError } from "@/lib/api/http";
+import { type Me, displayName, getMe } from "@/lib/api/auth";
 import { LOGIN_PATH, navigation } from "@/lib/api/login-path";
+import { authSession } from "@/lib/supabase/browser";
 import ui from "./ui.module.css";
 
 /**
@@ -28,18 +28,16 @@ function Account() {
   }, []);
 
   /**
-   * 서버가 세션을 지웠다고 답했을 때(204)만 로그인 화면으로 보낸다. 네트워크 오류·5xx면 쿠키와 서버 세션이
-   * 그대로 남아 있을 수 있으므로, 로그아웃된 것처럼 이동하지 않고 이 자리에서 알린 뒤 다시 누를 수 있게 한다.
-   * 401은 이미 세션이 없다는 뜻이라 공통 처리가 로그인 화면으로 보낸다.
+   * 이 브라우저의 Supabase 세션을 지운 뒤 로그인 화면으로 보낸다. 세션을 지우지 못하면(예외) 로그아웃된 것처럼
+   * 이동하지 않고 이 자리에서 알린 뒤 다시 누를 수 있게 한다.
    */
   async function signOut() {
     setLeaving(true); setFailed(false);
     try {
-      await logout();
+      await authSession.signOut();
       // 화면에 남은 셀러 데이터를 모두 비우도록 새로 불러온다.
       navigation.go(LOGIN_PATH);
-    } catch (error) {
-      if (error instanceof HttpError && error.kind === "unauthorized") return;
+    } catch {
       setFailed(true); setLeaving(false);
     }
   }

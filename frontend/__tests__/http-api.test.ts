@@ -3,6 +3,7 @@ import { type CampaignOut, createHttpCampaignApi, toCampaign } from "../features
 import { createHttpPublishingAdapter } from "../features/publishing/http-adapter";
 import { apiFetch } from "../lib/api/http";
 import { navigation } from "../lib/api/login-path";
+import { authSession } from "../lib/supabase/browser";
 
 // backend/app/schemas.py CampaignOut 모양
 function campaignOut(overrides: Partial<CampaignOut> = {}): CampaignOut {
@@ -26,9 +27,23 @@ function stub(handler: Handler) {
   calls = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => { calls.push({ url, init }); return handler(url, init); }));
 }
-afterEach(() => { vi.unstubAllGlobals(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
-test("인증 헤더 없이 부르고(쿠키 세션), 401이면 보던 경로를 기억해 로그인 화면으로 한 번만 보낸다", async () => {
+test("로그인했으면 Supabase access token을 Authorization 헤더로 붙인다", async () => {
+  vi.spyOn(authSession, "accessToken").mockResolvedValue("token-abc");
+  stub(() => json(200, { items: [], total: 0 }));
+  await apiFetch("/api/v1/campaigns");
+  expect((calls[0].init.headers as Record<string, string>).Authorization).toBe("Bearer token-abc");
+});
+
+test("세션을 읽지 못해도 요청은 헤더 없이 보낸다(백엔드가 401로 답한다)", async () => {
+  vi.spyOn(authSession, "accessToken").mockRejectedValue(new Error("storage"));
+  stub(() => json(200, { items: [], total: 0 }));
+  await apiFetch("/api/v1/campaigns");
+  expect((calls[0].init.headers as Record<string, string>).Authorization).toBeUndefined();
+});
+
+test("로그인 세션이 없으면 인증 헤더 없이 부르고, 401이면 보던 경로를 기억해 로그인 화면으로 한 번만 보낸다", async () => {
   const go = vi.spyOn(navigation, "go").mockImplementation(() => undefined);
   navigation.redirecting = false;
   window.history.replaceState(null, "", "/campaigns/3/review?tab=x");
