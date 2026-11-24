@@ -1,9 +1,11 @@
 /*
  * FastAPI 호출 공통 처리.
  * - 주소는 항상 /api/... (Next.js rewrites가 BACKEND_URL로 넘긴다).
- * - 로그인은 httpOnly 세션 쿠키(mama_session)라서 같은 주소로 fetch하면 쿠키가 저절로 간다. 토큰을 저장하거나 헤더에 붙이지 않는다.
+ * - 로그인은 Supabase Auth 세션이다. 요청마다 access token을 Authorization: Bearer 헤더로 붙이고, FastAPI가 검증한다.
+ *   토큰은 Supabase 클라이언트가 쿠키에 보관·갱신하며 여기서 따로 저장하지 않는다.
  * - 401(로그인 안 됨·만료)이면 지금 경로를 기억하고 로그인 화면으로 보낸다.
  */
+import { authSession } from "@/lib/supabase/browser";
 import { redirectToLogin } from "./login-path";
 
 export type HttpErrorKind = "unauthorized" | "forbidden" | "not_found" | "conflict" | "validation" | "llm" | "network";
@@ -90,11 +92,17 @@ async function toError(response: Response): Promise<HttpError> {
 }
 
 export async function apiFetch<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+  // 세션을 못 읽으면 헤더 없이 보낸다. 백엔드가 401로 답하면 아래에서 로그인 화면으로 보낸다.
+  const token = await authSession.accessToken().catch(() => null);
   let response: Response;
   try {
     response = await fetch(path, {
       method: init.method ?? "GET",
-      headers: { Accept: "application/json", ...(init.body === undefined ? {} : { "Content-Type": "application/json" }) },
+      headers: {
+        Accept: "application/json",
+        ...(init.body === undefined ? {} : { "Content-Type": "application/json" }),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
   } catch {

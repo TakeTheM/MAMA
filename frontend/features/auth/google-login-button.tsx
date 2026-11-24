@@ -1,23 +1,44 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import ui from "@/components/ui/ui.module.css";
-import { googleLoginUrl, recalledNext, rememberNext } from "@/lib/api/login-path";
+import { recalledNext, rememberNext } from "@/lib/api/login-path";
+import { authSession } from "@/lib/supabase/browser";
+import { LOGIN_ERRORS, loginErrorMessage } from "./login-errors";
 
 const noSubscribe = () => () => undefined;
 
 /**
- * Google 로그인 버튼(페이지 이동 링크).
- * Google 화면에서 취소하거나 토큰 교환이 실패하면 백엔드가 /login?error=… 로만 돌려보내 next가 빠진다.
- * 그래서 누를 때 돌아갈 경로를 기억해 두고, 오류로 돌아와 next가 없으면 기억한 경로로 다시 시도한다.
+ * Google 로그인 버튼. 누르면 Supabase Auth가 Google 동의 화면으로 이동시킨다.
+ * Google 화면에서 취소하거나 콜백이 실패해 돌아왔을 때 next가 빠져 있으면, 누를 때 기억해 둔 경로로 다시 시도한다.
  */
 export function GoogleLoginButton({ next, error }: { next?: string; error?: string }) {
   // 서버에서는 저장소를 읽을 수 없으므로 null, 브라우저에서만 읽는다.
   const recalled = useSyncExternalStore(noSubscribe, recalledNext, () => null);
   const target = next ?? (error ? recalled ?? undefined : undefined) ?? "/";
-  return <a className={ui.googleButton} href={googleLoginUrl(target)} onClick={() => rememberNext(target)}>
-    <GoogleMark />Google로 로그인
-  </a>;
+  const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  // Google 화면에서 뒤로 가기로 돌아오면 브라우저가 bfcache에서 '이동 중' 상태 그대로 페이지를 되살린다. 버튼을 다시 살린다.
+  useEffect(() => {
+    const restore = (event: PageTransitionEvent) => { if (event.persisted) setPending(false); };
+    window.addEventListener("pageshow", restore);
+    return () => window.removeEventListener("pageshow", restore);
+  }, []);
+
+  async function start() {
+    rememberNext(target);
+    setPending(true); setFailed(null);
+    const result = await authSession.signInWithGoogle(target).catch(() => ({ error: "google" }));
+    // 성공하면 페이지가 Google로 넘어가므로 버튼은 '이동 중'으로 둔다.
+    if (result.error) { setFailed(loginErrorMessage(result.error) ?? LOGIN_ERRORS.google); setPending(false); }
+  }
+
+  return <>
+    {failed && <p role="alert" className={ui.error}>{failed}</p>}
+    <button type="button" className={ui.googleButton} disabled={pending} onClick={() => void start()}>
+      <GoogleMark />{pending ? "Google로 이동 중…" : "Google로 로그인"}
+    </button>
+  </>;
 }
 
 function GoogleMark() {

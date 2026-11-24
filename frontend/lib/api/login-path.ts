@@ -1,26 +1,42 @@
 /*
  * 로그인 화면 주소와 '로그인 뒤 돌아올 경로(next)' 처리.
- * 백엔드도 next를 다시 거르지만(같은 사이트 경로만), 화면에서도 같은 기준으로 걸러서 넘긴다.
+ * /auth/callback도 next를 다시 거르지만(같은 사이트 경로만), 화면에서도 같은 기준으로 걸러서 넘긴다.
  */
 
 export const LOGIN_PATH = "/login";
 
-/** 같은 사이트 경로만 남긴다. /login, /api/..., 외부 주소(//host, https://...)는 / 로 바꾼다. */
+const SAME_SITE = "http://same.site";
+
+/**
+ * 같은 사이트 경로만 남긴다. /login, /auth/callback, /api/..., 외부 주소(//host, https://...)는 / 로 바꾼다.
+ * URL 파서는 탭·줄바꿈을 지우고 \ 를 / 로 읽는다("/\t/evil.com" → //evil.com). 그래서 제어 문자·\ 가 있으면 거부하고,
+ * 남은 값도 실제로 해석해 이 사이트 주소인지 확인한 뒤 해석된 경로를 돌려준다(검사한 값과 이동할 값이 같게).
+ */
 export function safeNext(value: string | null | undefined): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return "/";
-  const path = value.split(/[?#]/)[0];
-  if (path === LOGIN_PATH || path.startsWith(`${LOGIN_PATH}/`) || path === "/api" || path.startsWith("/api/")) return "/";
-  return value;
+  if (!value || !value.startsWith("/") || /[\x00-\x1f\x7f\\]/.test(value)) return "/";
+  let url: URL;
+  try { url = new URL(value, SAME_SITE); } catch { return "/"; }
+  if (url.origin !== SAME_SITE) return "/";
+  const path = url.pathname;
+  if ([LOGIN_PATH, "/auth/callback", "/api"].some((blocked) => path === blocked || path.startsWith(`${blocked}/`))) return "/";
+  return path + url.search + url.hash;
 }
 
-export function loginPath(next?: string | null): string {
+/** /login?error=코드&next=경로. error는 로그인 화면의 LOGIN_ERRORS 코드다. */
+export function loginPath(next?: string | null, error?: string): string {
+  const params = new URLSearchParams();
+  if (error) params.set("error", error);
   const target = safeNext(next);
-  return target === "/" ? LOGIN_PATH : `${LOGIN_PATH}?next=${encodeURIComponent(target)}`;
+  if (target !== "/") params.set("next", target);
+  const query = params.toString();
+  return query ? `${LOGIN_PATH}?${query}` : LOGIN_PATH;
 }
 
-/** Google 로그인은 fetch가 아니라 페이지 이동으로 연다(백엔드가 Google 화면으로 보낸다). */
-export function googleLoginUrl(next?: string | null): string {
-  return `/api/v1/auth/google/login?next=${encodeURIComponent(safeNext(next))}`;
+/** Supabase가 Google 로그인 뒤 돌려보낼 경로. Supabase 대시보드의 Redirect URLs에 허용돼 있어야 한다. */
+export const AUTH_CALLBACK_PATH = "/auth/callback";
+
+export function authCallbackUrl(origin: string, next?: string | null): string {
+  return `${origin}${AUTH_CALLBACK_PATH}?next=${encodeURIComponent(safeNext(next))}`;
 }
 
 /** 실제 페이지 이동. 테스트에서는 go를 바꿔 끼워 이동 대신 주소만 확인한다. */
@@ -45,7 +61,7 @@ export function redirectToLogin(): void {
   navigation.go(loginPath(pathname + search));
 }
 
-/** 3번: 로그인 버튼을 누를 때 돌아갈 경로를 기억해 둔다. 백엔드가 오류로 돌려보낼 때 next를 빠뜨려도 다시 시도하면 원래 화면으로 간다. */
+/** 로그인 버튼을 누를 때 돌아갈 경로를 기억해 둔다. 오류로 돌아온 주소에 next가 빠져도 다시 시도하면 원래 화면으로 간다. */
 const NEXT_KEY = "mama.loginNext";
 export function rememberNext(next: string): void {
   try { window.sessionStorage.setItem(NEXT_KEY, safeNext(next)); } catch { /* 저장소를 못 쓰면 / 로 돌아간다 */ }
