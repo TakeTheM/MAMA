@@ -2,10 +2,36 @@
   "openapi": "3.1.0",
   "info": {
     "title": "MAMA API",
-    "description": "로그인 없이 캠페인을 관리하는 공유 작업공간입니다. 게시·종료·반려는 사용자가 남기는 기록이며 외부 플랫폼을 호출하지 않습니다.",
+    "description": "Supabase Auth(Google)로 로그인한 셀러가 자기 캠페인만 관리합니다. Authorization: Bearer <Supabase access token>이 필요합니다. 게시·종료·반려는 사용자가 남기는 기록이며 외부 플랫폼을 호출하지 않습니다.",
     "version": "0.1.0"
   },
   "paths": {
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "로그인"
+        ],
+        "summary": "로그인한 셀러",
+        "operationId": "me_api_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/campaigns/{campaign_id}/generate-draft": {
       "post": {
         "tags": [
@@ -13,6 +39,11 @@
         ],
         "summary": "F-01 채널별 초안 생성",
         "operationId": "generate_draft_api_v1_campaigns__campaign_id__generate_draft_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "campaign_id",
@@ -57,6 +88,11 @@
         ],
         "summary": "Create",
         "operationId": "create_api_v1_campaigns_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -96,6 +132,11 @@
         ],
         "summary": "List Campaigns",
         "operationId": "list_campaigns_api_v1_campaigns_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "limit",
@@ -152,6 +193,11 @@
         ],
         "summary": "Detail",
         "operationId": "detail_api_v1_campaigns__campaign_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "campaign_id",
@@ -194,6 +240,11 @@
         ],
         "summary": "Edit",
         "operationId": "edit_api_v1_campaigns__campaign_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "campaign_id",
@@ -248,6 +299,11 @@
         ],
         "summary": "History",
         "operationId": "history_api_v1_campaigns__campaign_id__history_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "campaign_id",
@@ -296,6 +352,11 @@
         ],
         "summary": "Request Review",
         "operationId": "request_review_api_v1_campaigns__campaign_id__request_review_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "campaign_id",
@@ -357,6 +418,11 @@
         ],
         "summary": "검수가 완료된 문구 승인",
         "operationId": "approve_api_v1_campaigns__campaign_id__approve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "campaign_id",
@@ -401,6 +467,11 @@
         ],
         "summary": "Schedule",
         "operationId": "schedule_api_v1_campaigns__campaign_id__schedule_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "campaign_id",
@@ -455,6 +526,11 @@
         ],
         "summary": "Publish",
         "operationId": "publish_api_v1_campaigns__campaign_id__publish_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "campaign_id",
@@ -516,6 +592,11 @@
         ],
         "summary": "End",
         "operationId": "end_api_v1_campaigns__campaign_id__end_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "campaign_id",
@@ -577,6 +658,11 @@
         ],
         "summary": "Reject",
         "operationId": "reject_api_v1_campaigns__campaign_id__reject_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "campaign_id",
@@ -631,6 +717,11 @@
         ],
         "summary": "Request Revision",
         "operationId": "request_revision_api_v1_campaigns__campaign_id__request_revision_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "campaign_id",
@@ -675,6 +766,11 @@
         ],
         "summary": "Cancel",
         "operationId": "cancel_api_v1_campaigns__campaign_id__cancel_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "campaign_id",
@@ -719,6 +815,11 @@
         ],
         "summary": "Generate Performance",
         "operationId": "generate_performance_api_v1_campaigns__campaign_id__performance_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "campaign_id",
@@ -771,6 +872,11 @@
         ],
         "summary": "Get Performance",
         "operationId": "get_performance_api_v1_campaigns__campaign_id__performance_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "campaign_id",
@@ -815,6 +921,11 @@
         ],
         "summary": "Complete Performance",
         "operationId": "complete_performance_api_v1_campaigns__campaign_id__performance_complete_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "campaign_id",
@@ -1057,6 +1168,10 @@
             "type": "integer",
             "title": "Id"
           },
+          "owner_id": {
+            "type": "integer",
+            "title": "Owner Id"
+          },
           "content": {
             "type": "string",
             "title": "Content"
@@ -1286,6 +1401,7 @@
         "type": "object",
         "required": [
           "id",
+          "owner_id",
           "content",
           "product_name",
           "product_description",
@@ -1567,6 +1683,10 @@
           "next_status": {
             "$ref": "#/components/schemas/CampaignStatus"
           },
+          "changed_by": {
+            "type": "integer",
+            "title": "Changed By"
+          },
           "recorded_at": {
             "type": "string",
             "format": "date-time",
@@ -1584,6 +1704,7 @@
           "campaign_id",
           "previous_status",
           "next_status",
+          "changed_by",
           "recorded_at",
           "snapshot"
         ],
@@ -1981,6 +2102,36 @@
           "scheduled_at": "2030-01-01T09:00:00+09:00"
         }
       },
+      "UserOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "name"
+        ],
+        "title": "UserOut"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -2020,6 +2171,13 @@
           "type"
         ],
         "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "description": "Supabase Auth access token",
+        "scheme": "bearer"
       }
     }
   }

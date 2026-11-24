@@ -11,7 +11,7 @@ from app.models import Campaign, CampaignStatusHistory
 app = FastAPI(
     title="MAMA API", version="0.1.0",
     description=(
-        "Google 계정으로 로그인한 셀러가 자기 캠페인만 관리합니다. "
+        "Supabase Auth(Google)로 로그인한 셀러가 자기 캠페인만 관리합니다. Authorization: Bearer <Supabase access token>이 필요합니다. "
         "게시·종료·반려는 사용자가 남기는 기록이며 외부 플랫폼을 호출하지 않습니다."
     ),
 )
