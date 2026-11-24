@@ -14,7 +14,9 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.use
 
 test("돌아갈 경로는 같은 사이트 경로만 남기고 로그인·API·외부 주소는 / 로 바꾼다", () => {
   expect(safeNext("/campaigns/3/review?tab=x")).toBe("/campaigns/3/review?tab=x");
-  for (const bad of [null, "", "campaigns", "//evil.com", "/\\evil.com", "https://evil.com", "/login", "/login?next=/", "/auth/callback", "/auth/callback?code=x", "/api/v1/campaigns", "/api"]) {
+  for (const bad of [null, "", "campaigns", "//evil.com", "/\\evil.com", "https://evil.com", "/login", "/login?next=/", "/auth/callback", "/auth/callback?code=x", "/api/v1/campaigns", "/api",
+    // URL 파서가 탭·줄바꿈을 지우고 \\ 를 / 로 읽어 //evil.com 이 되는 값, 해석하면 막힌 경로가 되는 값
+    "/\t/evil.com", "/\n\\evil.com", "/\r/evil.com", "/\t\t//evil.com", "/./login", "/%2e%2e/api/v1/campaigns", "/campaigns/../login"]) {
     expect(safeNext(bad)).toBe("/");
   }
   expect(loginPath("/campaigns/3")).toBe("/login?next=%2Fcampaigns%2F3");
@@ -34,6 +36,17 @@ test("Google 로그인 버튼은 돌아갈 경로를 담아 Supabase Google 로�
   fireEvent.click(screen.getByRole("button", { name: "Google로 로그인" }));
   expect(start).toHaveBeenCalledWith("/campaigns/3/review");
   expect(((await screen.findByRole("button", { name: "Google로 이동 중…" })) as HTMLButtonElement).disabled).toBe(true);
+});
+
+test("Google 화면에서 뒤로 가기로 돌아오면(bfcache) 버튼을 다시 누를 수 있다", async () => {
+  signIn();
+  render(<LoginScreen />);
+  fireEvent.click(screen.getByRole("button", { name: "Google로 로그인" }));
+  await screen.findByRole("button", { name: "Google로 이동 중…" });
+  const event = new Event("pageshow") as PageTransitionEvent;
+  Object.defineProperty(event, "persisted", { value: true });
+  fireEvent(window, event);
+  expect(((await screen.findByRole("button", { name: "Google로 로그인" })) as HTMLButtonElement).disabled).toBe(false);
 });
 
 test("Google 로그인을 시작하지 못하면 이유를 알리고 다시 누를 수 있다", async () => {

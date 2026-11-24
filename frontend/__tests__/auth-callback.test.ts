@@ -41,6 +41,9 @@ test("돌려보낼 경로는 같은 사이트 경로만 쓴다", async () => {
   expect(await callback("?code=ok&next=%2F%2Fevil.com")).toBe("https://mama.example/");
   expect(await callback("?code=ok&next=https%3A%2F%2Fevil.com")).toBe("https://mama.example/");
   expect(await callback("?code=ok")).toBe("https://mama.example/");
+  // 탭·줄바꿈을 끼워 //evil.com 으로 해석되게 만든 값
+  expect(await callback("?code=ok&next=%2F%09%2Fevil.com")).toBe("https://mama.example/");
+  expect(await callback("?code=ok&next=%2F%0A%5Cevil.com")).toBe("https://mama.example/");
 });
 
 test("실패하면 이유와 돌아갈 경로를 담아 로그인 화면으로 보낸다", async () => {

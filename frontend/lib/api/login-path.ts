@@ -5,12 +5,21 @@
 
 export const LOGIN_PATH = "/login";
 
-/** 같은 사이트 경로만 남긴다. /login, /auth/callback, /api/..., 외부 주소(//host, https://...)는 / 로 바꾼다. */
+const SAME_SITE = "http://same.site";
+
+/**
+ * 같은 사이트 경로만 남긴다. /login, /auth/callback, /api/..., 외부 주소(//host, https://...)는 / 로 바꾼다.
+ * URL 파서는 탭·줄바꿈을 지우고 \ 를 / 로 읽는다("/\t/evil.com" → //evil.com). 그래서 제어 문자·\ 가 있으면 거부하고,
+ * 남은 값도 실제로 해석해 이 사이트 주소인지 확인한 뒤 해석된 경로를 돌려준다(검사한 값과 이동할 값이 같게).
+ */
 export function safeNext(value: string | null | undefined): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return "/";
-  const path = value.split(/[?#]/)[0];
+  if (!value || !value.startsWith("/") || /[\x00-\x1f\x7f\\]/.test(value)) return "/";
+  let url: URL;
+  try { url = new URL(value, SAME_SITE); } catch { return "/"; }
+  if (url.origin !== SAME_SITE) return "/";
+  const path = url.pathname;
   if ([LOGIN_PATH, "/auth/callback", "/api"].some((blocked) => path === blocked || path.startsWith(`${blocked}/`))) return "/";
-  return value;
+  return path + url.search + url.hash;
 }
 
 /** /login?error=코드&next=경로. error는 로그인 화면의 LOGIN_ERRORS 코드다. */

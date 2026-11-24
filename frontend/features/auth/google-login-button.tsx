@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import ui from "@/components/ui/ui.module.css";
 import { recalledNext, rememberNext } from "@/lib/api/login-path";
 import { authSession } from "@/lib/supabase/browser";
@@ -18,6 +18,12 @@ export function GoogleLoginButton({ next, error }: { next?: string; error?: stri
   const target = next ?? (error ? recalled ?? undefined : undefined) ?? "/";
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  // Google 화면에서 뒤로 가기로 돌아오면 브라우저가 bfcache에서 '이동 중' 상태 그대로 페이지를 되살린다. 버튼을 다시 살린다.
+  useEffect(() => {
+    const restore = (event: PageTransitionEvent) => { if (event.persisted) setPending(false); };
+    window.addEventListener("pageshow", restore);
+    return () => window.removeEventListener("pageshow", restore);
+  }, []);
 
   async function start() {
     rememberNext(target);
