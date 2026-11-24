@@ -32,6 +32,7 @@ uv run fastapi dev main.py --port 8000
 | `TEST_DATABASE_URL` | 개발 DB와 다른 전용 테스트 DB. 이름은 `_test`로 끝나야 함 |
 | `LLM_API_KEY`, `LLM_MODEL` | 비어 있으면 초안 생성·검수·성과 요약 요청은 `503` 반환 |
 | `LLM_BASE_URL` | 기본 `https://api.openai.com/v1` |
+| `SUPABASE_URL` | 로그인 확인용 Supabase 프로젝트 주소 `https://<ref>.supabase.co`. 비어 있으면 로그인이 필요한 API는 `503` |
 
 Supabase Transaction pooler에는 `NullPool`과 `prepare_threshold=None`을 적용합니다. URL의 포트·사용자·`sslmode`는 공급자가 제공한 값을 사용하세요. 비밀번호의 URL 예약 문자는 percent encoding이 필요합니다. 기존 MySQL URL `mysql+pymysql://...`도 사용할 수 있습니다.
 
@@ -41,28 +42,32 @@ Supabase Transaction pooler에는 `NullPool`과 `prepare_threshold=None`을 적�
 
 ### Vercel 배포
 
-백엔드 프로젝트의 Root Directory를 `backend`로 지정하고 Production의 `DATABASE_URL`에 백엔드가 사용할 PostgreSQL 주소를 설정합니다. 빌드 명령 재정의가 켜져 있다면 해제해 `pyproject.toml`의 빌드 스크립트가 실행되도록 합니다. 프로덕션 빌드는 앱 배포 전에 같은 DB에서 예전 백엔드와 함께 써도 되는 리비전(기본 `0005`, `MIGRATION_TARGET`으로 변경)까지만 `alembic upgrade`를 실행합니다. 스키마를 변경할 수 있는 DB 계정이 필요합니다.
+백엔드 프로젝트의 Root Directory를 `backend`로 지정하고 Production의 `DATABASE_URL`에 백엔드가 사용할 PostgreSQL 주소를 설정합니다. 빌드 명령 재정의가 켜져 있다면 해제해 `pyproject.toml`의 빌드 스크립트가 실행되도록 합니다. 프로덕션 빌드는 앱 배포 전에 같은 DB에서 이 백엔드에 필요한 리비전(기본 `0007`, `MIGRATION_TARGET`으로 변경)까지만 `alembic upgrade`를 실행합니다. 스키마를 변경할 수 있는 DB 계정이 필요합니다.
 
 프리뷰 빌드는 DB를 변경하지 않습니다. 프리뷰용 DB는 해당 환경의 `DATABASE_URL`을 지정한 뒤 `backend/`에서 `uv run alembic upgrade head`로 별도로 준비합니다. 이미 배포한 환경에서 `relation "campaigns" does not exist`가 발생하면, 해당 배포와 같은 DB 및 스키마에 마이그레이션을 적용하고 `GET /api/health/db`가 200을 반환하는지 확인합니다.
 
-### 배포 순서 (Google 로그인 도입)
+### 로그인(Supabase Auth)
 
-운영 빌드는 새 백엔드가 트래픽을 받기 전에 마이그레이션을 적용하므로, 예전(0004) 백엔드가 아직 동작하는 동안에도 쓰기가 실패하지 않도록 두 단계로 나눕니다.
+로그인은 프론트가 Supabase Auth(Google)로 처리하고, 백엔드는 요청의 `Authorization: Bearer <access token>`만 검증합니다. 백엔드에는 Google 키·세션 쿠키·비밀값이 없습니다.
 
-1. **확장(0005)**: 이 백엔드를 배포하면 빌드가 `0005`까지 적용합니다. `users.google_sub`·`name` 추가, `auth_sessions.token_hash` 이름 변경만 하며 캠페인 열 제약은 바꾸지 않아 0004 백엔드도 그대로 동작하고 앱만 롤백할 수 있습니다.
-2. **전환**: 로그인 화면이 있는 프론트와 새 백엔드가 함께 운영에 올라가 0004 백엔드가 더 이상 요청을 받지 않는지 확인합니다. 이 사이에 소유자 없이 남은 예전 캠페인은 새 백엔드에서 보이지 않습니다.
-3. **축소(0006)**: `backend/`에서 운영 `DATABASE_URL`로 직접 적용합니다. 소유자 없는 캠페인이 있으면 넘겨받을 셀러 이메일이 필요합니다. 이후에는 0004 백엔드로 되돌릴 수 없습니다.
+- **서명**: `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`의 비대칭 키(ES256·RS256·EdDSA)로만 검증합니다. Supabase 대시보드 Project Settings → JWT Keys에서 **비대칭 서명 키로 전환해야 합니다**. 예전 HS256 공유 비밀 토큰은 `401`입니다. (HS256이면 프론트 proxy의 `getClaims()`도 매 요청 Supabase를 호출합니다.)
+- **클레임**: `iss = {SUPABASE_URL}/auth/v1`, `aud = role = authenticated`, `exp`·`iat`·`sub` 필수, 익명 사용자 거절, `app_metadata`에 Google 로그인 계정만. `user_metadata`는 사용자가 바꿀 수 있어 표시 이름에만 씁니다.
+- **응답 코드**: 토큰이 없거나 잘못됨·만료 → `401`(프론트가 로그인 화면으로 보냄). 토큰은 유효하지만 셀러에 연결할 수 없음 → `403`과 한국어 `detail`. JWKS를 받지 못함·`SUPABASE_URL` 없음 → `503`.
+- **셀러 연결**: `users.supabase_user_id`(토큰 `sub`)로 찾고, 없으면 첫 요청 때 만듭니다. 같은 이메일의 기존 계정(예전 Google 로그인·이메일 로그인)은 `@gmail.com` 주소일 때만 자동 연결합니다. 그 밖의 주소는 `403`이며, 운영자가 소유권을 확인한 뒤 해당 행의 `supabase_user_id`에 Supabase 사용자 UUID(대시보드 Authentication → Users)를 직접 넣습니다. 동시 첫 요청에서도 한 계정에는 Supabase 사용자가 하나만 연결됩니다.
+- **Supabase 대시보드 설정**: Authentication → Providers에서 Google만 켜고 Email 가입은 끕니다(Google 계정이 아닌 토큰은 어차피 `401`). Google Cloud Console의 OAuth 클라이언트 리디렉션 URI는 `https://<ref>.supabase.co/auth/v1/callback`입니다. 프론트 쪽 설정은 `frontend/.env.example`을 따릅니다.
+
+### 배포 순서 (Supabase Auth 전환)
+
+운영 빌드는 기본으로 `0007`까지 적용합니다. `0007`은 `users.supabase_user_id`를 추가하고 예전 쿠키 세션 표(`auth_sessions`)를 지웁니다. 프론트는 이미 Bearer 토큰만 보내므로 예전 세션은 쓸 곳이 없습니다.
+
+- DB가 아직 `0006` 전이면 `0006`(캠페인 소유자 NOT NULL)도 함께 적용됩니다. 소유자 없는 캠페인이 남아 있으면 DDL 전에 멈추므로, Vercel 환경변수 `LEGACY_OWNER_EMAIL`에 넘겨받을 셀러의 Google 이메일을 넣고 다시 배포하거나 직접 적용합니다.
 
 ```bash
-LEGACY_OWNER_EMAIL='owner@gmail.com' uv run alembic upgrade 0006
+LEGACY_OWNER_EMAIL='owner@gmail.com' uv run alembic upgrade 0007
 ```
 
-적용 뒤 Vercel의 `MIGRATION_TARGET`을 `head`로 바꾸거나 `scripts/vercel-build.sh`의 기본값을 올립니다.
-
-### Google 로그인
-
-- 기존 셀러 계정(같은 이메일, `google_sub` 없음)과의 자동 연결은 Google이 주소 소유권을 보증할 때만 합니다: `@gmail.com` 주소이거나 ID 토큰에 Workspace 도메인(`hd`)이 있는 경우. 그 밖의 주소는 `/login?error=link`로 돌려보내며, 운영자가 소유권을 확인한 뒤 해당 계정의 `google_sub`를 직접 연결합니다.
-- 동시 첫 로그인에서도 한 계정에는 `google_sub`가 하나만 연결됩니다. 다른 Google 계정이 먼저 연결했으면 `/login?error=account`입니다.
+- 배포 전에 백엔드 Vercel 환경변수 `SUPABASE_URL`을 설정합니다. 예전 `GOOGLE_*`·`JWT_SECRET`·`COOKIE_SECURE`는 지워도 됩니다.
+- `0007`을 되돌리면 `auth_sessions`는 빈 표로 다시 만들어집니다(예전 세션은 복구되지 않음).
 
 ### 캠페인 API
 

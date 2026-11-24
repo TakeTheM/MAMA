@@ -223,7 +223,7 @@ def test_history_failure_rolls_back_campaign_state(client, mysql_engine):
 
     event.listen(CampaignStatusHistory, "before_insert", fail_history)
     try:
-        with TestClient(app, raise_server_exceptions=False, cookies=client.cookies) as client:
+        with TestClient(app, raise_server_exceptions=False, headers={"Authorization": client.headers["Authorization"]}) as client:
             result = client.post(f"{BASE}/{campaign_id}/request-review")
             assert result.status_code == 500
     finally:
@@ -239,7 +239,7 @@ def test_history_failure_rolls_back_campaign_creation(client, mysql_engine):
 
     event.listen(CampaignStatusHistory, "before_insert", fail_history)
     try:
-        with TestClient(app, raise_server_exceptions=False, cookies=client.cookies) as client:
+        with TestClient(app, raise_server_exceptions=False, headers={"Authorization": client.headers["Authorization"]}) as client:
             assert client.post(BASE, json=CAMPAIGN).status_code == 500
     finally:
         event.remove(CampaignStatusHistory, "before_insert", fail_history)

@@ -24,33 +24,25 @@ class CampaignStatus(StrEnum):
 
 
 class User(Base):
-    """Google 계정으로 로그인한 셀러. password_hash는 예전 이메일 로그인 계정에만 남아 있다."""
+    """Supabase Auth(Google)로 로그인한 셀러.
+
+    supabase_user_id는 Supabase 사용자 UUID(토큰의 sub)다. google_sub는 예전 직접 Google 로그인(0005~0006) 기록이고,
+    password_hash는 예전 이메일 로그인 계정에만 남아 있다. 둘 다 새 로그인에서는 쓰지 않는다.
+    """
 
     __tablename__ = "users"
-    __table_args__ = (UniqueConstraint("google_sub", name="uq_users_google_sub"), TABLE_OPTIONS)
+    __table_args__ = (
+        UniqueConstraint("google_sub", name="uq_users_google_sub"),
+        UniqueConstraint("supabase_user_id", name="uq_users_supabase_user_id"),
+        TABLE_OPTIONS,
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(254), unique=True)
     password_hash: Mapped[str | None] = mapped_column(String(255))
     google_sub: Mapped[str | None] = mapped_column(String(255))
+    supabase_user_id: Mapped[str | None] = mapped_column(String(36))
     name: Mapped[str | None] = mapped_column(String(200))
-    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
-
-
-class AuthSession(Base):
-    __tablename__ = "auth_sessions"
-    __table_args__ = (
-        Index("ix_auth_sessions_user_id", "user_id"),
-        UniqueConstraint("token_hash", name="uq_auth_sessions_token_hash"),
-        TABLE_OPTIONS,
-    )
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    # 세션 쿠키 값의 SHA-256. 쿠키 원문은 저장하지 않는다.
-    token_hash: Mapped[str] = mapped_column(String(64))
-    expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
-    revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
